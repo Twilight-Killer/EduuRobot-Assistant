@@ -1,1 +1,1 @@
-worker : -m EduuRobot.py
+worker: python3 -m EduuRobot.py
