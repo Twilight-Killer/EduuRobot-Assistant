@@ -1,1 +1,1 @@
-worker: python3 -m eduu
+worker: python3 -m eduu.py
