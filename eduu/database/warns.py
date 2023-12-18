@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 from typing import Optional, Tuple
 
@@ -9,17 +9,13 @@ conn = database.get_conn()
 
 
 async def get_warn_action(chat_id: int) -> Tuple[Optional[str], bool]:
-    cursor = await conn.execute(
-        "SELECT warn_action FROM groups WHERE chat_id = (?)", (chat_id,)
-    )
-    res = await cursor.fetchone()[0]
+    cursor = await conn.execute("SELECT warn_action FROM groups WHERE chat_id = (?)", (chat_id,))
+    res = (await cursor.fetchone())[0]
     return "ban" if res is None else res
 
 
 async def set_warn_action(chat_id: int, action: Optional[str]):
-    await conn.execute(
-        "UPDATE groups SET warn_action = ? WHERE chat_id = ?", (action, chat_id)
-    )
+    await conn.execute("UPDATE groups SET warn_action = ? WHERE chat_id = ?", (action, chat_id))
     await conn.commit()
 
 
@@ -42,13 +38,13 @@ async def add_warns(chat_id, user_id, number):
             "UPDATE user_warns SET count = count + ? WHERE chat_id = ? AND user_id = ?",
             (number, chat_id, user_id),
         )
-        await conn.commit()
     else:
         await conn.execute(
             "INSERT INTO user_warns (user_id, chat_id, count) VALUES (?,?,?)",
             (user_id, chat_id, number),
         )
-        await conn.commit()
+
+    await conn.commit()
 
 
 async def reset_warns(chat_id, user_id):
@@ -59,10 +55,8 @@ async def reset_warns(chat_id, user_id):
 
 
 async def get_warns_limit(chat_id):
-    cursor = await conn.execute(
-        "SELECT warns_limit FROM groups WHERE chat_id = ?", (chat_id,)
-    )
-    res = await cursor.fetchone()[0]
+    cursor = await conn.execute("SELECT warns_limit FROM groups WHERE chat_id = ?", (chat_id,))
+    res = (await cursor.fetchone())[0]
     return 3 if res is None else res
 
 

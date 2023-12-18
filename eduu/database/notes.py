@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 from .core import database
 
@@ -23,13 +23,10 @@ async def update_note(chat_id, trigger, raw_data, file_id, note_type):
 
 
 async def rm_note(chat_id, trigger):
-    await conn.execute(
-        "DELETE from notes WHERE chat_id = ? AND note_name = ?", (chat_id, trigger)
-    )
+    await conn.execute("DELETE from notes WHERE chat_id = ? AND note_name = ?", (chat_id, trigger))
     await conn.commit()
 
 
 async def get_all_notes(chat_id):
     cursor = await conn.execute("SELECT * FROM notes WHERE chat_id = ?", (chat_id,))
-    row = await cursor.fetchall()
-    return row
+    return await cursor.fetchall()

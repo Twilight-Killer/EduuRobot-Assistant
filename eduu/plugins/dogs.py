@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-from ..config import PREFIXES
-from ..utils import commands, http
-from ..utils.localization import use_chat_lang
+from config import PREFIXES
+from eduu.utils import commands, http
+from eduu.utils.localization import use_chat_lang
 
 
 @Client.on_message(filters.command("dog", PREFIXES))
-@use_chat_lang()
+@use_chat_lang
 async def dog(c: Client, m: Message, strings):
     r = await http.get("https://random.dog/woof.json")
     rj = r.json()

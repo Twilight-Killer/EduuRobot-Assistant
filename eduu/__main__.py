@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import asyncio
 import logging
@@ -45,7 +45,7 @@ async def main():
             await idle()
     except KeyboardInterrupt:
         # exit gracefully
-        logger.warning("Forced stop... Bye!")
+        logger.warning("Forced stop… Bye!")
     finally:
         # close https connections and the DB if open
         await eduu.stop()

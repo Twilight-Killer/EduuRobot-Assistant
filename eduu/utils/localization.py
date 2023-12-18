@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
-import inspect
 import json
-import os.path
-from functools import partial, wraps
-from glob import glob
-from typing import Dict, List
+from functools import partial
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Union
 
 from pyrogram.enums import ChatType
 from pyrogram.types import CallbackQuery, InlineQuery, Message
 
-from ..database.localization import get_db_lang
+from eduu.database.localization import get_db_lang
+from eduu.utils.utils import get_caller_context
 
 enabled_locales: List[str] = [
     "en-GB",  # English (United Kingdom)
@@ -44,50 +43,55 @@ enabled_locales: List[str] = [
 default_language: str = "en-GB"
 
 
-def cache_localizations(files: List[str]) -> Dict[str, Dict[str, Dict[str, str]]]:
+def cache_localizations(files: List[Path]) -> Dict[str, Dict[str, Dict[str, str]]]:
     ldict = {lang: {} for lang in enabled_locales}
     for file in files:
-        _, lname, pname = file.split(os.path.sep)
+        _, lname, pname = file.parts
         pname = pname.split(".")[0]
-        dic = json.load(open(file, encoding="utf-8"))
+        dic: dict = json.load(file.open("r", encoding="utf8"))
         dic.update(ldict[lname].get(pname, {}))
         ldict[lname][pname] = dic
     return ldict
 
 
-jsons: List[str] = []
+jsons: List[Path] = []
 
 for locale in enabled_locales:
-    jsons += glob(os.path.join("locales", locale, "*.json"))
+    jsons.extend((Path("locales") / locale).glob("*.json"))
 
 langdict = cache_localizations(jsons)
 
 
 def get_locale_string(
-    dic: dict, language: str, default_context: str, key: str, context: str = None
+    dic: dict,
+    language: str,
+    default_context: str,
+    key: str,
+    context: Optional[str] = None,
 ) -> str:
     if context:
         default_context = context
         dic = langdict[language].get(context, langdict[default_language][context])
-    res: str = (
-        dic.get(key) or langdict[default_language][default_context].get(key) or key
-    )
+    res: str = dic.get(key) or langdict[default_language][default_context].get(key) or key
     return res
 
 
-async def get_lang(message) -> str:
+async def get_lang(message: Union[CallbackQuery, Message, InlineQuery]) -> str:
     if isinstance(message, CallbackQuery):
-        chat = message.message.chat
+        chat = message.message.chat if message.message else message.from_user
+        chat_type = message.message.chat.type if message.message else ChatType.PRIVATE
     elif isinstance(message, Message):
         chat = message.chat
+        chat_type = message.chat.type
     elif isinstance(message, InlineQuery):
-        chat, chat.type = message.from_user, ChatType.PRIVATE
+        chat = message.from_user
+        chat_type = message.chat_type
     else:
         raise TypeError(f"Update type '{message.__name__}' is not supported.")
 
-    lang = await get_db_lang(chat.id, chat.type)
+    lang = await get_db_lang(chat.id, chat_type)
 
-    if chat.type == ChatType.PRIVATE:
+    if chat_type == ChatType.PRIVATE:
         lang = lang or message.from_user.language_code or default_language
     else:
         lang = lang or default_language
@@ -104,27 +108,16 @@ async def get_lang(message) -> str:
     return lang if lang in enabled_locales else default_language
 
 
-def use_chat_lang(context: str = None):
-    if not context:
-        cwd = os.getcwd()
-        frame = inspect.stack()[1]
+def use_chat_lang(func: Callable):
+    """Decorator to get the chat language and pass it to the function."""
+    context = get_caller_context()
 
-        fname = frame.filename
+    async def wrapper(client, message, *args, **kwargs):
+        lang = await get_lang(message)
 
-        if fname.startswith(cwd):
-            fname = fname[len(cwd) + 1 :]
-        context = fname.split(os.path.sep)[2].split(".")[0]  # eduu/plugins/<context>.py
+        dic = langdict.get(lang, langdict[default_language])
 
-    def decorator(func):
-        @wraps(func)
-        async def wrapper(client, message):
-            lang = await get_lang(message)
+        lfunc = partial(get_locale_string, dic.get(context, {}), lang, context)
+        return await func(client, message, *args, lfunc, **kwargs)
 
-            dic = langdict.get(lang, langdict[default_language])
-
-            lfunc = partial(get_locale_string, dic.get(context, {}), lang, context)
-            return await func(client, message, lfunc)
-
-        return wrapper
-
-    return decorator
+    return wrapper

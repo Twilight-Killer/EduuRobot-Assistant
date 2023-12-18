@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 from .core import database
 
@@ -31,5 +31,4 @@ async def rm_filter(chat_id, trigger):
 
 async def get_all_filters(chat_id):
     cursor = await conn.execute("SELECT * FROM filters WHERE chat_id = ?", (chat_id,))
-    row = await cursor.fetchall()
-    return row
+    return await cursor.fetchall()

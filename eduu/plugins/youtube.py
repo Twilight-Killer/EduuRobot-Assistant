@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import datetime
 import io
-import os
 import re
 import shutil
 import tempfile
+from pathlib import Path
 
 from pyrogram import Client, filters
 from pyrogram.errors import BadRequest
@@ -14,9 +14,10 @@ from pyrogram.helpers import ikb
 from pyrogram.types import CallbackQuery, Message
 from yt_dlp import YoutubeDL
 
-from ..config import PREFIXES
-from ..utils import aiowrap, http, pretty_size
-from ..utils.localization import use_chat_lang
+from config import PREFIXES
+from eduu.utils import http, pretty_size
+from eduu.utils.decorators import aiowrap
+from eduu.utils.localization import use_chat_lang
 
 YOUTUBE_REGEX = re.compile(
     r"(?m)http(?:s?):\/\/(?:www\.)?(?:music\.)?youtu(?:be\.com\/(watch\?v=|shorts/)|\.be\/|)([\w\-\_]*)(&(amp;)?[\w\?=]*)?"
@@ -36,7 +37,7 @@ async def search_yt(query):
     page = (
         await http.get(
             "https://www.youtube.com/results",
-            params=dict(search_query=query, pbj="1"),
+            params={"search_query": query, "pbj": "1"},
             headers={
                 "x-youtube-client-name": "1",
                 "x-youtube-client-version": "2.20200827",
@@ -50,8 +51,7 @@ async def search_yt(query):
         if video.get("videoRenderer"):
             dic = {
                 "title": video["videoRenderer"]["title"]["runs"][0]["text"],
-                "url": "https://www.youtube.com/watch?v="
-                + video["videoRenderer"]["videoId"],
+                "url": "https://www.youtube.com/watch?v=" + video["videoRenderer"]["videoId"],
             }
             list_videos.append(dic)
     return list_videos
@@ -60,16 +60,15 @@ async def search_yt(query):
 @Client.on_message(filters.command("yt", PREFIXES))
 async def yt_search_cmd(c: Client, m: Message):
     vids = [
-        '{}: <a href="{}">{}</a>'.format(num + 1, i["url"], i["title"])
+        f'{num + 1}: <a href="{i["url"]}">{i["title"]}</a>'
         for num, i in enumerate(await search_yt(m.text.split(None, 1)[1]))
     ]
-    await m.reply_text(
-        "\n".join(vids) if vids else r"¯\_(ツ)_/¯", disable_web_page_preview=True
-    )
+
+    await m.reply_text("\n".join(vids) if vids else r"¯\_(ツ)_/¯", disable_web_page_preview=True)
 
 
 @Client.on_message(filters.command("ytdl", PREFIXES))
-@use_chat_lang()
+@use_chat_lang
 async def ytdlcmd(c: Client, m: Message, strings):
     user = m.from_user.id
 
@@ -94,13 +93,13 @@ async def ytdlcmd(c: Client, m: Message, strings):
     if match:
         yt = await extract_info(ydl, match.group(), download=False)
     else:
-        yt = await extract_info(ydl, "ytsearch:" + url, download=False)
+        yt = await extract_info(ydl, f"ytsearch:{url}", download=False)
         yt = yt["entries"][0]
 
     for f in yt["formats"]:
-        if f["format_id"] == "140":
+        if f["format_id"] == "140" and f.get("filesize") is not None:
             afsize = f["filesize"] or 0
-        if f["ext"] == "mp4" and f["filesize"] is not None:
+        if f["ext"] == "mp4" and f.get("filesize") is not None:
             vfsize = f["filesize"] or 0
 
     keyboard = [
@@ -130,27 +129,26 @@ async def ytdlcmd(c: Client, m: Message, strings):
 
 
 @Client.on_callback_query(filters.regex("^(_(vid|aud))"))
-@use_chat_lang()
+@use_chat_lang
 async def cli_ytdl(c: Client, cq: CallbackQuery, strings):
     data, fsize, temp, cid, userid, mid = cq.data.split("|")
-    if not cq.from_user.id == int(userid):
-        return await cq.answer(strings("ytdl_button_denied"), cache_time=60)
+    if cq.from_user.id != int(userid):
+        await cq.answer(strings("ytdl_button_denied"), cache_time=60)
+        return
     if int(fsize) > MAX_FILESIZE:
-        return await cq.answer(
+        await cq.answer(
             strings("ytdl_file_too_big"),
             show_alert=True,
             cache_time=60,
         )
+        return
     vid = re.sub(r"^\_(vid|aud)\.", "", data)
-    url = "https://www.youtube.com/watch?v=" + vid
-    await cq.message.edit(strings("ytdl_downloading"))
+    url = f"https://www.youtube.com/watch?v={vid}"
+    await cq.message.edit_text(strings("ytdl_downloading"))
     with tempfile.TemporaryDirectory() as tempdir:
-        path = os.path.join(tempdir, "ytdl")
+        path = Path(tempdir) / "ytdl"
 
-    ttemp = ""
-    if int(temp):
-        ttemp = f"⏰ {datetime.timedelta(seconds=int(temp))} | "
-
+    ttemp = f"⏰ {datetime.timedelta(seconds=int(temp))} | " if int(temp) else ""
     if "vid" in data:
         ydl = YoutubeDL(
             {
@@ -172,9 +170,9 @@ async def cli_ytdl(c: Client, cq: CallbackQuery, strings):
     try:
         yt = await extract_info(ydl, url, download=True)
     except BaseException as e:
-        await cq.message.edit(strings("ytdl_send_error").format(errmsg=e))
+        await cq.message.edit_text(strings("ytdl_send_error").format(errmsg=e))
         return
-    await cq.message.edit(strings("ytdl_sending"))
+    await cq.message.edit_text(strings("ytdl_sending"))
     filename = ydl.prepare_filename(yt)
     thumb = io.BytesIO((await http.get(yt["thumbnail"])).content)
     thumb.name = "thumbnail.png"

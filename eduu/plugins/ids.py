@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import html
 
@@ -7,13 +7,13 @@ from pyrogram import Client, filters
 from pyrogram.errors.exceptions import BadRequest
 from pyrogram.types import Message
 
-from ..config import PREFIXES
-from ..utils import commands
-from ..utils.localization import use_chat_lang
+from config import PREFIXES
+from eduu.utils import commands
+from eduu.utils.localization import use_chat_lang
 
 
 @Client.on_message(filters.command("id", PREFIXES) & filters.private)
-@use_chat_lang()
+@use_chat_lang
 async def ids_private(c: Client, m: Message, strings):
     if len(m.command) == 2:
         try:
@@ -21,18 +21,16 @@ async def ids_private(c: Client, m: Message, strings):
                 int(m.command[1]) if m.command[1].isdecimal() else m.command[1]
             )
         except BadRequest:
-            return await m.reply_text(
-                strings("user_not_found").format(user=m.command[1])
-            )
+            await m.reply_text(strings("user_not_found").format(user=m.command[1]))
+            return
     else:
         user_data = m.from_user
+
     await m.reply_text(
         strings("info_private").format(
             first_name=user_data.first_name,
             last_name=user_data.last_name or "",
-            username="@" + user_data.username
-            if user_data.username
-            else strings("none"),
+            username=f"@{user_data.username}" if user_data.username else strings("none"),
             user_id=user_data.id,
             user_dc=user_data.dc_id or strings("unknown"),
             lang=user_data.language_code or strings("unknown"),
@@ -42,7 +40,7 @@ async def ids_private(c: Client, m: Message, strings):
 
 
 @Client.on_message(filters.command("id", PREFIXES) & filters.group)
-@use_chat_lang()
+@use_chat_lang
 async def ids(c: Client, m: Message, strings):
     if len(m.command) == 2:
         try:
@@ -50,9 +48,9 @@ async def ids(c: Client, m: Message, strings):
                 int(m.command[1]) if m.command[1].isdecimal() else m.command[1]
             )
         except BadRequest:
-            return await m.reply_text(
-                strings("user_not_found").format(user=m.command[1])
-            )
+            await m.reply_text(strings("user_not_found").format(user=m.command[1]))
+            return
+
     elif m.reply_to_message:
         user_data = m.reply_to_message.from_user
     else:
@@ -62,14 +60,12 @@ async def ids(c: Client, m: Message, strings):
         strings("info_group").format(
             first_name=html.escape(user_data.first_name),
             last_name=html.escape(user_data.last_name or ""),
-            username="@" + user_data.username
-            if user_data.username
-            else strings("none"),
+            username=f"@{user_data.username}" if user_data.username else strings("none"),
             user_id=user_data.id,
             user_dc=user_data.dc_id or strings("unknown"),
             lang=user_data.language_code or strings("unknown"),
             chat_title=m.chat.title,
-            chat_username="@" + m.chat.username if m.chat.username else strings("none"),
+            chat_username=f"@{m.chat.username}" if m.chat.username else strings("none"),
             chat_id=m.chat.id,
             chat_dc=m.chat.dc_id or strings("unknown"),
             chat_type=m.chat.type,

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
+import re
 from typing import Iterable, List
 
 from pyrogram import Client, filters
@@ -13,8 +14,8 @@ from pyrogram.types import (
     InputTextMessageContent,
 )
 
-from ..utils import button_parser
-from ..utils.localization import use_chat_lang
+from eduu.utils import button_parser, inline_commands
+from eduu.utils.localization import use_chat_lang
 
 faces_list: Iterable[str] = (
     "¯\\_(ツ)_/¯",
@@ -56,20 +57,18 @@ faces_list: Iterable[str] = (
 )
 
 
-@Client.on_inline_query(filters.regex(r"^face"))
+@Client.on_inline_query(filters.regex(r"^face", re.I))
 async def faces_inline(c: Client, q: InlineQuery):
-    results: List[InlineQueryResultArticle] = []
-    for i in faces_list:
-        results.append(
-            InlineQueryResultArticle(
-                title=i, input_message_content=InputTextMessageContent(i)
-            )
-        )
+    results: List[InlineQueryResultArticle] = [
+        InlineQueryResultArticle(title=i, input_message_content=InputTextMessageContent(i))
+        for i in faces_list
+    ]
+
     await q.answer(results)
 
 
-@Client.on_inline_query(filters.regex(r"^markdown"))
-@use_chat_lang()
+@Client.on_inline_query(filters.regex(r"^markdown .+", re.I))
+@use_chat_lang
 async def markdown_inline(c: Client, q: InlineQuery, strings):
     queryinputres = q.query.split(None, 1)[1]
     querytxt, querybuttons = button_parser(queryinputres)
@@ -81,17 +80,15 @@ async def markdown_inline(c: Client, q: InlineQuery, strings):
                     querytxt, parse_mode=ParseMode.MARKDOWN
                 ),
                 reply_markup=(
-                    InlineKeyboardMarkup(querybuttons)
-                    if len(querybuttons) != 0
-                    else None
+                    InlineKeyboardMarkup(querybuttons) if len(querybuttons) != 0 else None
                 ),
             )
         ]
     )
 
 
-@Client.on_inline_query(filters.regex(r"^html"))
-@use_chat_lang()
+@Client.on_inline_query(filters.regex(r"^html .+", re.I))
+@use_chat_lang
 async def html_inline(c: Client, q: InlineQuery, strings):
     queryinputres = q.query.split(None, 1)[1]
     querytxt, querybuttons = button_parser(queryinputres)
@@ -103,17 +100,15 @@ async def html_inline(c: Client, q: InlineQuery, strings):
                     querytxt,
                 ),
                 reply_markup=(
-                    InlineKeyboardMarkup(querybuttons)
-                    if len(querybuttons) != 0
-                    else None
+                    InlineKeyboardMarkup(querybuttons) if len(querybuttons) != 0 else None
                 ),
             )
         ]
     )
 
 
-@Client.on_inline_query(filters.regex(r"^info"))
-@use_chat_lang()
+@Client.on_inline_query(filters.regex(r"^info .+", re.I))
+@use_chat_lang
 async def info_inline(c: Client, q: InlineQuery, strings):
     try:
         if q.query == "info":
@@ -132,6 +127,7 @@ async def info_inline(c: Client, q: InlineQuery, strings):
                 )
             ]
         )
+        return
     await q.answer(
         [
             InlineQueryResultArticle(
@@ -147,3 +143,9 @@ async def info_inline(c: Client, q: InlineQuery, strings):
             )
         ]
     )
+
+
+inline_commands.add_command("faces")
+inline_commands.add_command("html <text>")
+inline_commands.add_command("info <username>")
+inline_commands.add_command("markdown <text>")

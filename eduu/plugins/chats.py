@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 from pyrogram import Client
 from pyrogram.types import Message
 
-from ..database.chats import add_chat, chat_exists
+from eduu.database.chats import add_chat, chat_exists
 
 # This is the first plugin run to guarantee
 # that the actual chat is initialized in the DB.

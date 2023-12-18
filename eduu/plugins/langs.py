@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
-from functools import partial
+from itertools import zip_longest
 from typing import Union
 
 from pyrogram import Client, filters
@@ -13,48 +13,30 @@ from pyrogram.types import (
     Message,
 )
 
-from ..config import PREFIXES
-from ..database.localization import set_db_lang
-from ..utils.decorators import require_admin
-from ..utils.localization import (
-    default_language,
-    get_locale_string,
-    langdict,
-    use_chat_lang,
-)
+from config import PREFIXES
+from eduu.database.localization import set_db_lang
+from eduu.utils.decorators import require_admin
+from eduu.utils.localization import langdict, use_chat_lang
 
 
 def gen_langs_kb():
-    langs = list(langdict)
-    kb = []
-    while langs:
-        lang = langdict[langs[0]]["main"]
-        a = [
+    return [
+        [
             InlineKeyboardButton(
-                f"{lang['language_flag']} {lang['language_name']}",
-                callback_data="set_lang " + langs[0],
+                f"{langdict[lang]['main']['language_flag']} {langdict[lang]['main']['language_name']}",
+                callback_data=f"set_lang {lang}",
             )
+            for lang in langs
+            if lang
         ]
-        langs.pop(0)
-        if langs:
-            lang = langdict[langs[0]]["main"]
-            a.append(
-                InlineKeyboardButton(
-                    f"{lang['language_flag']} {lang['language_name']}",
-                    callback_data="set_lang " + langs[0],
-                )
-            )
-            langs.pop(0)
-        kb.append(a)
-    return kb
+        for langs in zip_longest(*[iter(langdict)] * 2)
+    ]
 
 
 @Client.on_callback_query(filters.regex("^chlang$"))
-@Client.on_message(
-    filters.command(["setchatlang", "setlang"], PREFIXES) & filters.group
-)
+@Client.on_message(filters.command(["setchatlang", "setlang"], PREFIXES) & filters.group)
 @require_admin(allow_in_private=True)
-@use_chat_lang()
+@use_chat_lang
 async def chlang(c: Client, m: Union[CallbackQuery, Message], strings):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -85,18 +67,15 @@ async def chlang(c: Client, m: Union[CallbackQuery, Message], strings):
 
 @Client.on_callback_query(filters.regex("^set_lang "))
 @require_admin(allow_in_private=True)
-@use_chat_lang()
-async def set_chat_lang(c: Client, m: CallbackQuery, strings):
+async def set_chat_lang(c: Client, m: CallbackQuery):
     lang = m.data.split()[1]
     await set_db_lang(m.message.chat.id, m.message.chat.type, lang)
 
-    strings = partial(
-        get_locale_string,
-        langdict[lang].get("langs", langdict[default_language]["langs"]),
-        lang,
-        "langs",
-    )
+    await set_chat_lang_edit(c, m)
 
+
+@use_chat_lang
+async def set_chat_lang_edit(c: Client, m: CallbackQuery, strings):
     if m.message.chat.type == ChatType.PRIVATE:
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -110,6 +89,4 @@ async def set_chat_lang(c: Client, m: CallbackQuery, strings):
         )
     else:
         keyboard = None
-    await m.message.edit_text(
-        strings("language_changed_successfully"), reply_markup=keyboard
-    )
+    await m.message.edit_text(strings("language_changed_successfully"), reply_markup=keyboard)

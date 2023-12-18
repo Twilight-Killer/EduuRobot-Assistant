@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import re
 
@@ -7,16 +7,16 @@ from pyrogram import Client, filters
 from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, Message
 
-from ..config import PREFIXES
-from ..database.custom_filters import (
+from config import PREFIXES
+from eduu.database.custom_filters import (
     add_filter,
     get_all_filters,
     rm_filter,
     update_filter,
 )
-from ..utils import button_parser, commands, split_quotes
-from ..utils.decorators import require_admin
-from ..utils.localization import use_chat_lang
+from eduu.utils import button_parser, commands, split_quotes
+from eduu.utils.decorators import require_admin
+from eduu.utils.localization import use_chat_lang
 
 
 async def check_for_filters(chat_id, trigger):
@@ -30,7 +30,7 @@ async def check_for_filters(chat_id, trigger):
 
 @Client.on_message(filters.command(["filter", "savefilter"], PREFIXES))
 @require_admin(allow_in_private=True)
-@use_chat_lang()
+@use_chat_lang
 async def save_filter(c: Client, m: Message, strings):
     args = m.text.markdown.split(maxsplit=1)
     split_text = split_quotes(args[1])
@@ -43,41 +43,31 @@ async def save_filter(c: Client, m: Message, strings):
     if m.reply_to_message and m.reply_to_message.photo:
         file_id = m.reply_to_message.photo.file_id
         raw_data = (
-            m.reply_to_message.caption.markdown
-            if m.reply_to_message.caption is not None
-            else None
+            m.reply_to_message.caption.markdown if m.reply_to_message.caption is not None else None
         )
         filter_type = "photo"
     elif m.reply_to_message and m.reply_to_message.document:
         file_id = m.reply_to_message.document.file_id
         raw_data = (
-            m.reply_to_message.caption.markdown
-            if m.reply_to_message.caption is not None
-            else None
+            m.reply_to_message.caption.markdown if m.reply_to_message.caption is not None else None
         )
         filter_type = "document"
     elif m.reply_to_message and m.reply_to_message.video:
         file_id = m.reply_to_message.video.file_id
         raw_data = (
-            m.reply_to_message.caption.markdown
-            if m.reply_to_message.caption is not None
-            else None
+            m.reply_to_message.caption.markdown if m.reply_to_message.caption is not None else None
         )
         filter_type = "video"
     elif m.reply_to_message and m.reply_to_message.audio:
         file_id = m.reply_to_message.audio.file_id
         raw_data = (
-            m.reply_to_message.caption.markdown
-            if m.reply_to_message.caption is not None
-            else None
+            m.reply_to_message.caption.markdown if m.reply_to_message.caption is not None else None
         )
         filter_type = "audio"
     elif m.reply_to_message and m.reply_to_message.animation:
         file_id = m.reply_to_message.animation.file_id
         raw_data = (
-            m.reply_to_message.caption.markdown
-            if m.reply_to_message.caption is not None
-            else None
+            m.reply_to_message.caption.markdown if m.reply_to_message.caption is not None else None
         )
         filter_type = "animation"
     elif m.reply_to_message and m.reply_to_message.sticker:
@@ -91,36 +81,34 @@ async def save_filter(c: Client, m: Message, strings):
 
     chat_id = m.chat.id
     check_filter = await check_for_filters(chat_id, trigger)
+
     if check_filter:
         await update_filter(chat_id, trigger, raw_data, file_id, filter_type)
     else:
         await add_filter(chat_id, trigger, raw_data, file_id, filter_type)
-    await m.reply_text(
-        strings("add_filter_success").format(trigger=trigger), quote=True
-    )
+
+    await m.reply_text(strings("add_filter_success").format(trigger=trigger), quote=True)
 
 
 @Client.on_message(filters.command(["delfilter", "rmfilter", "stop"], PREFIXES))
 @require_admin(allow_in_private=True)
-@use_chat_lang()
+@use_chat_lang
 async def delete_filter(c: Client, m: Message, strings):
     args = m.text.markdown.split(maxsplit=1)
     trigger = args[1].lower()
     chat_id = m.chat.id
     check_filter = await check_for_filters(chat_id, trigger)
-    if check_filter:
-        await rm_filter(chat_id, trigger)
-        await m.reply_text(
-            strings("remove_filter_success").format(trigger=trigger), quote=True
-        )
-    else:
-        await m.reply_text(
-            strings("no_filter_with_name").format(trigger=trigger), quote=True
-        )
+
+    if not check_filter:
+        await m.reply_text(strings("no_filter_with_name").format(trigger=trigger), quote=True)
+        return
+
+    await rm_filter(chat_id, trigger)
+    await m.reply_text(strings("remove_filter_success").format(trigger=trigger), quote=True)
 
 
 @Client.on_message(filters.command("filters", PREFIXES))
-@use_chat_lang()
+@use_chat_lang
 async def get_all_filter(c: Client, m: Message, strings):
     chat_id = m.chat.id
     reply_text = strings("filters_list")
@@ -131,91 +119,83 @@ async def get_all_filter(c: Client, m: Message, strings):
 
     if not all_filters:
         await m.reply_text(strings("filters_list_empty"), quote=True)
-    else:
-        await m.reply_text(reply_text, quote=True)
+        return
+
+    await m.reply_text(reply_text, quote=True)
 
 
-@Client.on_message(
-    (filters.group | filters.private) & filters.text & filters.incoming, group=1
-)
+@Client.on_message((filters.group | filters.private) & filters.text & filters.incoming, group=1)
 async def serve_filter(c: Client, m: Message):
     chat_id = m.chat.id
     text = m.text
     targeted_message = m.reply_to_message or m
 
     all_filters = await get_all_filters(chat_id)
-    for filter_s in all_filters:
-        keyword = filter_s[1]
+    for filter_ in all_filters:
+        keyword = filter_[1]
         pattern = r"( |^|[^\w])" + re.escape(keyword) + r"( |$|[^\w])"
-        if re.search(pattern, text, flags=re.IGNORECASE):
-            data, button = button_parser(filter_s[2])
-            if filter_s[4] == "text":
-                await targeted_message.reply_text(
-                    data,
-                    quote=True,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
-            elif filter_s[4] == "photo":
-                await targeted_message.reply_photo(
-                    filter_s[3],
-                    quote=True,
-                    caption=data if not None else None,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
-            elif filter_s[4] == "document":
-                await targeted_message.reply_document(
-                    filter_s[3],
-                    quote=True,
-                    caption=data if not None else None,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
-            elif filter_s[4] == "video":
-                await targeted_message.reply_video(
-                    filter_s[3],
-                    quote=True,
-                    caption=data if not None else None,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
-            elif filter_s[4] == "audio":
-                await targeted_message.reply_audio(
-                    filter_s[3],
-                    quote=True,
-                    caption=data if not None else None,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
-            elif filter_s[4] == "animation":
-                await targeted_message.reply_animation(
-                    filter_s[3],
-                    quote=True,
-                    caption=data if not None else None,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
-            elif filter_s[4] == "sticker":
-                await targeted_message.reply_sticker(
-                    filter_s[3],
-                    quote=True,
-                    reply_markup=InlineKeyboardMarkup(button)
-                    if len(button) != 0
-                    else None,
-                )
+        if not re.search(pattern, text, flags=re.IGNORECASE):
+            continue
+
+        data, button = button_parser(filter_[2])
+        if filter_[4] == "text":
+            await targeted_message.reply_text(
+                data,
+                quote=True,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
+        elif filter_[4] == "photo":
+            await targeted_message.reply_photo(
+                filter_[3],
+                quote=True,
+                caption=data,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
+
+        elif filter_[4] == "document":
+            await targeted_message.reply_document(
+                filter_[3],
+                quote=True,
+                caption=data,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
+
+        elif filter_[4] == "video":
+            await targeted_message.reply_video(
+                filter_[3],
+                quote=True,
+                caption=data,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
+
+        elif filter_[4] == "audio":
+            await targeted_message.reply_audio(
+                filter_[3],
+                quote=True,
+                caption=data,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
+
+        elif filter_[4] == "animation":
+            await targeted_message.reply_animation(
+                filter_[3],
+                quote=True,
+                caption=data,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
+
+        elif filter_[4] == "sticker":
+            await targeted_message.reply_sticker(
+                filter_[3],
+                quote=True,
+                reply_markup=InlineKeyboardMarkup(button) if len(button) != 0 else None,
+            )
 
 
 commands.add_command("delfilter", "admin")

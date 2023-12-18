@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import html
 
@@ -7,22 +7,20 @@ import regex
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-from ..utils.localization import use_chat_lang
+from eduu.utils.localization import use_chat_lang
 
 
 @Client.on_message(filters.regex(r"^s/(.+)?/(.+)?(/.+)?") & filters.reply)
-@use_chat_lang()
+@use_chat_lang
 async def sed(c: Client, m: Message, strings):
     exp = regex.split(r"(?<![^\\]\\)/", m.text)
     pattern = exp[1]
     replace_with = exp[2].replace(r"\/", "/")
     flags = exp[3] if len(exp) > 3 else ""
 
-    count = 1
     rflags = 0
 
-    if "g" in flags:
-        count = 0
+    count = 0 if "g" in flags else 1
     if "i" in flags and "s" in flags:
         rflags = regex.I | regex.S
     elif "i" in flags:
@@ -36,9 +34,7 @@ async def sed(c: Client, m: Message, strings):
         return
 
     try:
-        res = regex.sub(
-            pattern, replace_with, text, count=count, flags=rflags, timeout=1
-        )
+        res = regex.sub(pattern, replace_with, text, count=count, flags=rflags, timeout=1)
     except TimeoutError:
         await m.reply_text(strings("regex_timeout"))
     except regex.error as e:

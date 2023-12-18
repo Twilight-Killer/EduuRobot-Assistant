@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import asyncio
 
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import ChatPrivileges, Message
 
-from ...config import PREFIXES
-from ...database.admins import check_if_del_service, toggle_del_service
-from ...utils import commands
-from ...utils.decorators import require_admin
-from ...utils.localization import use_chat_lang
+from config import PREFIXES
+from eduu.database.admins import check_if_del_service, toggle_del_service
+from eduu.utils import commands
+from eduu.utils.decorators import require_admin
+from eduu.utils.localization import use_chat_lang
 
 
 @Client.on_message(filters.command("purge", PREFIXES))
-@require_admin(permissions=["can_delete_messages"], allow_in_private=True)
-@use_chat_lang()
+@require_admin(ChatPrivileges(can_delete_messages=True), allow_in_private=True)
+@use_chat_lang
 async def purge(c: Client, m: Message, strings):
     """Purge upto the replied message."""
     status_message = await m.reply_text(strings("purge_in_progress"), quote=True)
@@ -32,16 +32,14 @@ async def purge(c: Client, m: Message, strings):
         if len(message_ids) > 0:
             await c.delete_messages(chat_id=m.chat.id, message_ids=message_ids)
             count_del_etion_s += len(message_ids)
-    await status_message.edit_text(
-        strings("purge_success").format(count=count_del_etion_s)
-    )
+    await status_message.edit_text(strings("purge_success").format(count=count_del_etion_s))
     await asyncio.sleep(5)
     await status_message.delete()
 
 
 @Client.on_message(filters.command("cleanservice", PREFIXES))
-@require_admin(permissions=["can_delete_messages"])
-@use_chat_lang()
+@require_admin(ChatPrivileges(can_delete_messages=True))
+@use_chat_lang
 async def delservice(c: Client, m: Message, strings):
     if len(m.text.split()) > 1:
         if m.command[1] == "on":
@@ -56,7 +54,7 @@ async def delservice(c: Client, m: Message, strings):
         check_delservice = await check_if_del_service(m.chat.id)
         if check_delservice is None:
             await m.reply_text(strings("cleanservice_status_disabled"))
-        elif check_delservice is not None:
+        else:
             await m.reply_text(strings("cleanservice_status_enabled"))
 
 

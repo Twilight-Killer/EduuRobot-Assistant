@@ -1,22 +1,28 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2022 Amano Team
+# Copyright (c) 2018-2023 Amano LLC
 
 import asyncio
 import inspect
 import math
-import os.path
 import re
 from datetime import datetime, timedelta
-from functools import partial, wraps
+from functools import partial
+from pathlib import Path
 from string import Formatter
-from typing import Callable, List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import httpx
 from pyrogram import Client, emoji, filters
 from pyrogram.enums import ChatMemberStatus, MessageEntityType
-from pyrogram.types import CallbackQuery, InlineKeyboardButton, Message, User
+from pyrogram.types import (
+    CallbackQuery,
+    ChatPrivileges,
+    InlineKeyboardButton,
+    Message,
+    User,
+)
 
-from ..config import SUDOERS
+from config import SUDOERS
 
 BTN_URL_REGEX = re.compile(r"(\[([^\[]+?)\]\(buttonurl:(?:/{0,2})(.+?)(:same)?\))")
 
@@ -42,25 +48,14 @@ def pretty_size(size_bytes):
     i = int(math.floor(math.log(size_bytes, 1024)))
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
-    return "%s %s" % (s, size_name[i])
-
-
-def aiowrap(func: Callable) -> Callable:
-    @wraps(func)
-    async def run(*args, loop=None, executor=None, **kwargs):
-        if loop is None:
-            loop = asyncio.get_event_loop()
-        pfunc = partial(func, *args, **kwargs)
-        return await loop.run_in_executor(executor, pfunc)
-
-    return run
+    return f"{s} {size_name[i]}"
 
 
 async def check_perms(
     message: Union[CallbackQuery, Message],
-    permissions: Optional[Union[list, str]],
-    complain_missing_perms: bool,
-    strings,
+    permissions: Optional[ChatPrivileges] = None,
+    complain_missing_perms: bool = True,
+    strings=None,
 ) -> bool:
     if isinstance(message, CallbackQuery):
         sender = partial(message.answer, show_alert=True)
@@ -73,8 +68,6 @@ async def check_perms(
     if user.status == ChatMemberStatus.OWNER:
         return True
 
-    missing_perms = []
-
     # No permissions specified, accept being an admin.
     if not permissions and user.status == ChatMemberStatus.ADMINISTRATOR:
         return True
@@ -83,119 +76,139 @@ async def check_perms(
             await sender(strings("no_admin_error"))
         return False
 
-    if isinstance(permissions, str):
-        permissions = [permissions]
-
-    for permission in permissions:
-        if not getattr(user.privileges, permission):
-            missing_perms.append(permission)
+    missing_perms = [
+        perm
+        for perm, value in permissions.__dict__.items()
+        if value and not getattr(user.privileges, perm)
+    ]
 
     if not missing_perms:
         return True
     if complain_missing_perms:
-        await sender(
-            strings("no_permission_error").format(permissions=", ".join(missing_perms))
-        )
+        await sender(strings("no_permission_error").format(permissions=", ".join(missing_perms)))
     return False
 
 
 sudofilter = filters.user(SUDOERS)
 
 
-async def time_extract(m: Message, t: str) -> Optional[datetime]:
-    if t[-1] in ["m", "h", "d"]:
-        unit = t[-1]
-        num = t[:-1]
-        if not num.isdigit():
-            await m.reply_text("Invalid Amount specified")
-            return None
+async def extract_time(m: Message, time: str) -> Optional[datetime]:
+    if time[-1] not in ["m", "h", "d"]:
+        await m.reply_text("Invalid time format. Use 'h'/'m'/'d' ")
+        return None
 
-        if unit == "m":
-            return datetime.now() + timedelta(minutes=int(num))
-        elif unit == "h":
-            return datetime.now() + timedelta(hours=int(num))
-        elif unit == "d":
-            return datetime.now() + timedelta(days=int(num))
-        else:
-            return None
+    unit = time[-1]
+    num = time[:-1]
+    if not num.isdigit():
+        await m.reply_text("Invalid Amount specified")
+        return None
 
-    await m.reply_text("Invalid time format. Use 'h'/'m'/'d' ")
+    if unit == "m":
+        return datetime.now() + timedelta(minutes=int(num))
+    if unit == "h":
+        return datetime.now() + timedelta(hours=int(num))
+    if unit == "d":
+        return datetime.now() + timedelta(days=int(num))
+
     return None
 
 
 def remove_escapes(text: str) -> str:
-    counter = 0
     res = ""
     is_escaped = False
-    while counter < len(text):
+    for char in text:
         if is_escaped:
-            res += text[counter]
+            res += char
             is_escaped = False
-        elif text[counter] == "\\":
+        elif char == "\\":
             is_escaped = True
         else:
-            res += text[counter]
-        counter += 1
+            res += char
     return res
 
 
 def split_quotes(text: str) -> List:
-    if any(text.startswith(char) for char in START_CHAR):
-        counter = 1  # ignore first char -> is some kind of quote
-        while counter < len(text):
-            if text[counter] == "\\":
-                counter += 1
-            elif text[counter] == text[0] or (
-                text[0] == SMART_OPEN and text[counter] == SMART_CLOSE
-            ):
-                break
+    if not any(text.startswith(char) for char in START_CHAR):
+        return text.split(None, 1)
+    counter = 1  # ignore first char -> is some kind of quote
+    while counter < len(text):
+        if text[counter] == "\\":
             counter += 1
-        else:
-            return text.split(None, 1)
+        elif text[counter] == text[0] or (text[0] == SMART_OPEN and text[counter] == SMART_CLOSE):
+            break
+        counter += 1
+    else:
+        return text.split(None, 1)
 
-        key = remove_escapes(text[1:counter].strip())
-        rest = text[counter + 1 :].strip()
-        if not key:
-            key = text[0] + text[0]
-        return list(filter(None, [key, rest]))
-    return text.split(None, 1)
+    key = remove_escapes(text[1:counter].strip())
+    rest = text[counter + 1 :].strip()
+    if not key:
+        key = text[0] + text[0]
+    return list(filter(None, [key, rest]))
 
 
-def button_parser(markdown_note):
+def button_parser(text_note: str) -> Tuple[str, List[InlineKeyboardButton]]:
+    """Parse a string and return the parsed string and buttons.
+
+    Parameters
+    ----------
+    markdown_note: str
+        The string to parse
+
+    Returns
+    -------
+    Tuple[str, List[InlineKeyboardButton]]
+        The parsed string and buttons
+    """
     note_data = ""
     buttons = []
-    if markdown_note is None:
+    if text_note is None:
         return note_data, buttons
-    if markdown_note.startswith("/") or markdown_note.startswith("!"):
-        args = markdown_note.split(None, 2)
-        markdown_note = args[2]
+    if text_note.startswith(("/", "!")):
+        args = text_note.split(None, 2)
+        text_note = args[2]
     prev = 0
-    for match in BTN_URL_REGEX.finditer(markdown_note):
+    for match in BTN_URL_REGEX.finditer(text_note):
         n_escapes = 0
         to_check = match.start(1) - 1
-        while to_check > 0 and markdown_note[to_check] == "\\":
+        while to_check > 0 and text_note[to_check] == "\\":
             n_escapes += 1
             to_check -= 1
 
         if n_escapes % 2 == 0:
             if bool(match.group(4)) and buttons:
-                buttons[-1].append(
-                    InlineKeyboardButton(text=match.group(2), url=match.group(3))
-                )
+                buttons[-1].append(InlineKeyboardButton(text=match.group(2), url=match.group(3)))
             else:
-                buttons.append(
-                    [InlineKeyboardButton(text=match.group(2), url=match.group(3))]
-                )
-            note_data += markdown_note[prev : match.start(1)]
+                buttons.append([InlineKeyboardButton(text=match.group(2), url=match.group(3))])
+            note_data += text_note[prev : match.start(1)]
             prev = match.end(1)
 
         else:
-            note_data += markdown_note[prev:to_check]
+            note_data += text_note[prev:to_check]
             prev = match.start(1) - 1
 
-    note_data += markdown_note[prev:]
+    note_data += text_note[prev:]
 
     return note_data, buttons
+
+
+def get_caller_context(depth: int = 2) -> str:
+    """Get the context of the caller of the function calling this function.
+
+    Parameters
+    ----------
+    depth: int
+        Depth of the caller. Defaults to 2.
+
+    Returns
+    -------
+    str
+        The context of the caller.
+    """
+    fpath = Path(inspect.stack()[depth].filename)
+    cwd = Path.cwd()
+    fpath = fpath.relative_to(cwd)
+    return fpath.parts[2] if len(fpath.parts) == 4 else fpath.stem
 
 
 class BotCommands:
@@ -206,35 +219,24 @@ class BotCommands:
         self,
         command: str,
         category: str,
-        description_key: str = None,
-        context_location: str = None,
+        aliases: Optional[list] = None,
     ):
-        if not context_location:
-            # If context_location is not defined, get context from file name who added the command
+        context = get_caller_context()
 
-            cwd = os.getcwd()
-            frame = inspect.stack()[1]
+        description_key = f"{command}_description"
 
-            fname = frame.filename
-
-            if fname.startswith(cwd):
-                fname = fname[len(cwd) + 1 :]
-            context_location = fname.split(os.path.sep)[2].split(".")[
-                0
-            ]  # eduu/plugins/<context>.py
-        if description_key is None:
-            description_key = command + "_description"
         if self.commands.get(category) is None:
             self.commands[category] = []
         self.commands[category].append(
-            dict(
-                command=command,
-                description_key=description_key,
-                context=context_location,
-            )
+            {
+                "command": command,
+                "description_key": description_key,
+                "context": context,
+                "aliases": aliases or [],
+            }
         )
 
-    def get_commands_message(self, strings_manager, category: str = None):
+    def get_commands_message(self, strings, category: Optional[str] = None):
         # TODO: Add pagination support.
         if category is None:
             cmds_list = []
@@ -243,22 +245,52 @@ class BotCommands:
         else:
             cmds_list = self.commands[category]
 
-        res = (
-            strings_manager("command_category_title").format(
-                category=strings_manager(category)
-            )
-            + "\n\n"
-        )
+        res = strings("command_category_title").format(category=strings(category)) + "\n\n"
 
         cmds_list.sort(key=lambda k: k["command"])
 
         for cmd in cmds_list:
-            res += f"<b>/{cmd['command']}</b> - <i>{strings_manager(cmd['description_key'], context=cmd['context'])}</i>\n"
+            res += f"<b>/{cmd['command']}</b> - <i>{strings(cmd['description_key'], context=cmd['context'])}</i>\n"
 
         return res
 
 
+class InlineBotCommands:
+    def __init__(self):
+        self.commands = []
+
+    def add_command(
+        self,
+        command: str,
+        aliases: Optional[list] = None,
+    ):
+        context = get_caller_context()
+
+        description_key = f"{command.split()[0]}_description"
+
+        self.commands.append(
+            {
+                "command": command,
+                "description_key": description_key,
+                "context": context,
+                "aliases": aliases or [],
+            }
+        )
+
+    def search_commands(self, query: Optional[str] = None):
+        return [
+            cmd
+            for cmd in sorted(self.commands, key=lambda k: k["command"])
+            if (
+                not query
+                or query.lower() in cmd["command"]
+                or any(query.lower() in alias for alias in cmd["aliases"])
+            )
+        ]
+
+
 commands = BotCommands()
+inline_commands = InlineBotCommands()
 
 
 def get_emoji_regex():
@@ -277,29 +309,27 @@ def get_emoji_regex():
 
 async def get_target_user(c: Client, m: Message) -> User:
     if m.reply_to_message:
-        target_user = m.reply_to_message.from_user
-    else:
-        msg_entities = m.entities[1] if m.text.startswith("/") else m.entities[0]
-        target_user = await c.get_users(
-            msg_entities.user.id
-            if msg_entities.type == MessageEntityType.TEXT_MENTION
-            else int(m.command[1])
-            if m.command[1].isdecimal()
-            else m.command[1]
-        )
-    return target_user
+        return m.reply_to_message.from_user
+    msg_entities = m.entities[1] if m.text.startswith("/") else m.entities[0]
+    return await c.get_users(
+        msg_entities.user.id
+        if msg_entities.type == MessageEntityType.TEXT_MENTION
+        else int(m.command[1])
+        if m.command[1].isdecimal()
+        else m.command[1]
+    )
 
 
 async def get_reason_text(c: Client, m: Message) -> Message:
     reply = m.reply_to_message
     spilt_text = m.text.split
+
     if not reply and len(spilt_text()) >= 3:
-        reason = spilt_text(None, 2)[2]
-    elif reply and len(spilt_text()) >= 2:
-        reason = spilt_text(None, 1)[1]
-    else:
-        reason = None
-    return reason
+        return spilt_text(None, 2)[2]
+    if reply and len(spilt_text()) >= 2:
+        return spilt_text(None, 1)[1]
+
+    return None
 
 
 EMOJI_PATTERN = get_emoji_regex()
@@ -316,5 +346,21 @@ async def shell_exec(code):
 
 
 def get_format_keys(string: str) -> List[str]:
-    """Return a list of formatting keys present in string."""
+    """Return a list of formatting keys present in string.
+
+    Parameters
+    ----------
+    string: str
+        The string to parse.
+
+    Returns
+    -------
+    List[str]
+        A list of formatting keys present in string.
+    """
     return [i[1] for i in Formatter().parse(string) if i[1] is not None]
+
+
+def linkify_commit(commit: str) -> str:
+    """Return a link to a commit."""
+    return f'<a href="https://github.com/AmanoTeam/EduuRobot/commit/{commit}">{commit}</a>'
