@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 from urllib.parse import quote_plus
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.types import Message
 
 from config import PREFIXES
 from eduu.utils import commands, http
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 
 @Client.on_message(filters.command("git", PREFIXES))
 @use_chat_lang
-async def git(c: Client, m: Message, strings):
+async def git(c: Client, m: Message, s: Strings):
     if len(m.command) == 1:
-        await m.reply_text(strings("no_username_err"), reply_to_message_id=m.id)
+        await m.reply_text(s("git_no_username"), reply_to_message_id=m.id)
         return
 
     text = m.text.split(maxsplit=1)[1]
@@ -23,14 +23,14 @@ async def git(c: Client, m: Message, strings):
     res = req.json()
 
     if not res.get("login"):
-        await m.reply_text(strings("not_found_user"), reply_to_message_id=m.id)
+        await m.reply_text(s("git_user_not_found"), reply_to_message_id=m.id)
         return
 
     avatar = res["avatar_url"]
 
     anticache = quote_plus((await http.head(avatar)).headers["Last-Modified"])
 
-    caption_text = strings("info_git_user")
+    caption_text = s("git_user_info")
     await m.reply_photo(
         avatar + anticache,
         caption=caption_text.format(

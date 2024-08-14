@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
+
+from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
 
-from pyrogram.enums import ChatType
-from pyrogram.types import CallbackQuery, InlineQuery, Message
+from hydrogram.enums import ChatType
+from hydrogram.types import CallbackQuery, InlineQuery, Message
 
 from eduu.database.localization import get_db_lang
-from eduu.utils.utils import get_caller_context
 
-enabled_locales: List[str] = [
+enabled_locales: list[str] = [
     "en-GB",  # English (United Kingdom)
     "en-US",  # English (United States)
     "pt-BR",  # Portuguese (Brazil)
@@ -29,8 +31,9 @@ enabled_locales: List[str] = [
     "ja-JP",  # Japanese
     "no-NO",  # Norwegian
     "pl-PL",  # Polish
-    "pt-BRe",  # Portuguese (Brazil, extended version)
-    "pt-BR2",  # Portuguese (Brazil, informal version)
+    "pt-BR@formal",  # Portuguese (Brazil, extended version)
+    "pt-BR@informal",  # Portuguese (Brazil, informal version)
+    "eo-XX",  # Esperanto
     "ro-RO",  # Romanian
     "ru-RU",  # Russian
     "sv-SE",  # Swedish
@@ -43,40 +46,55 @@ enabled_locales: List[str] = [
 default_language: str = "en-GB"
 
 
-def cache_localizations(files: List[Path]) -> Dict[str, Dict[str, Dict[str, str]]]:
-    ldict = {lang: {} for lang in enabled_locales}
-    for file in files:
-        _, lname, pname = file.parts
-        pname = pname.split(".")[0]
-        dic: dict = json.load(file.open("r", encoding="utf8"))
-        dic.update(ldict[lname].get(pname, {}))
-        ldict[lname][pname] = dic
-    return ldict
+def cache_locales(locales: list[str]) -> dict[str, dict[str, str]]:
+    # init ldict with empty dict
+    locales_dict = {}
+
+    for locale in locales:
+        file = Path("locales", f"{locale}.json")
+
+        if not file.exists():
+            logging.warning(
+                "Unable to find locale %s. This locale will fallback to %s",
+                locale,
+                default_language,
+            )
+            continue
+
+        locale_keys = json.load(file.open("r", encoding="utf8"))
+
+        if "_meta_language_name" not in locale_keys or "_meta_language_flag" not in locale_keys:
+            logging.warning(
+                "Locale has required keys _meta_language_name or _meta_language_flag missing. This locale will not be loaded."
+            )
+            continue
+
+        locales_dict[locale] = locale_keys
+
+    return locales_dict
 
 
-jsons: List[Path] = []
-
-for locale in enabled_locales:
-    jsons.extend((Path("locales") / locale).glob("*.json"))
-
-langdict = cache_localizations(jsons)
+langdict = cache_locales(enabled_locales)
 
 
 def get_locale_string(
-    dic: dict,
     language: str,
-    default_context: str,
     key: str,
-    context: Optional[str] = None,
 ) -> str:
-    if context:
-        default_context = context
-        dic = langdict[language].get(context, langdict[default_language][context])
-    res: str = dic.get(key) or langdict[default_language][default_context].get(key) or key
-    return res
+    if "@" in language and language.split("@")[0] in langdict:
+        # if an @ (tone modifier) is present, try to get string from parent language if nullish
+        string = langdict[language].get(key) or langdict[language.split("@")[0]].get(key)
+    else:
+        string = langdict[language].get(key)
+
+    # return and fallback if nullish
+    return string or langdict[default_language].get(key) or key
 
 
-async def get_lang(message: Union[CallbackQuery, Message, InlineQuery]) -> str:
+Strings = Callable[[str], str]
+
+
+async def get_lang(message: CallbackQuery | Message | InlineQuery) -> str:
     if isinstance(message, CallbackQuery):
         chat = message.message.chat if message.message else message.from_user
         chat_type = message.message.chat.type if message.message else ChatType.PRIVATE
@@ -85,7 +103,7 @@ async def get_lang(message: Union[CallbackQuery, Message, InlineQuery]) -> str:
         chat_type = message.chat.type
     elif isinstance(message, InlineQuery):
         chat = message.from_user
-        chat_type = message.chat_type
+        chat_type = ChatType.PRIVATE
     else:
         raise TypeError(f"Update type '{message.__name__}' is not supported.")
 
@@ -110,14 +128,11 @@ async def get_lang(message: Union[CallbackQuery, Message, InlineQuery]) -> str:
 
 def use_chat_lang(func: Callable):
     """Decorator to get the chat language and pass it to the function."""
-    context = get_caller_context()
 
     async def wrapper(client, message, *args, **kwargs):
         lang = await get_lang(message)
 
-        dic = langdict.get(lang, langdict[default_language])
-
-        lfunc = partial(get_locale_string, dic.get(context, {}), lang, context)
+        lfunc = partial(get_locale_string, lang)
         return await func(client, message, *args, lfunc, **kwargs)
 
     return wrapper

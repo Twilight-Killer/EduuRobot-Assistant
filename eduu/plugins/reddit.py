@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 from html import escape
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.types import Message
 
 from config import PREFIXES
 from eduu.utils import commands, http
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 CHARACTER_LIMIT = 25
 
@@ -22,21 +22,21 @@ def limit_length(title: str):
 
 @Client.on_message(filters.command(["reddit", "r"], PREFIXES))
 @use_chat_lang
-async def reddit(c: Client, m: Message, strings):
+async def reddit(c: Client, m: Message, s: Strings):
     if len(m.command) == 1:
-        await m.reply_text(strings("reddit_usage"))
+        await m.reply_text(s("reddit_usage"))
         return
 
     subreddit = m.command[1]
 
     r = await http.get(f"https://www.reddit.com/r/{subreddit}/.json?limit=6")
 
-    if r.status_code in (404, 403):
-        await m.reply_text(strings("not_found"))
+    if r.status_code in {404, 403}:
+        await m.reply_text(s("reddit_not_found"))
         return
 
     if r.status_code >= 300:
-        await m.reply_text(strings("error"))
+        await m.reply_text(s("reddit_error"))
         return
 
     data = r.json()
@@ -46,13 +46,13 @@ async def reddit(c: Client, m: Message, strings):
         post_url = post["data"]["url"]
         post_title = escape(limit_length(post["data"]["title"]))
         nsfw = "NSFW" if post["data"]["over_18"] else "SFW"
-        comments = strings("comments").format(post["data"]["num_comments"])
+        comments = s("reddit_comments").format(post["data"]["num_comments"])
 
         post_item = f" - <a href='{post_url}'>{post_title}</a> &lt;{nsfw}&gt; - <a href='{post_url}'>{comments}</a>"
         feed_items.append(post_item)
 
     if not feed_items:
-        await m.reply_text(strings("no_results"))
+        await m.reply_text(s("reddit_no_results"))
         return
 
     feed = "\n".join(feed_items)

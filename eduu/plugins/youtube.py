@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 import datetime
 import io
@@ -8,16 +8,16 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from pyrogram import Client, filters
-from pyrogram.errors import BadRequest
-from pyrogram.helpers import ikb
-from pyrogram.types import CallbackQuery, Message
+from hydrogram import Client, filters
+from hydrogram.errors import BadRequest
+from hydrogram.helpers import ikb
+from hydrogram.types import CallbackQuery, Message
 from yt_dlp import YoutubeDL
 
 from config import PREFIXES
-from eduu.utils import http, pretty_size
+from eduu.utils import commands, http, pretty_size
 from eduu.utils.decorators import aiowrap
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 YOUTUBE_REGEX = re.compile(
     r"(?m)http(?:s?):\/\/(?:www\.)?(?:music\.)?youtu(?:be\.com\/(watch\?v=|shorts/)|\.be\/|)([\w\-\_]*)(&(amp;)?[\w\?=]*)?"
@@ -69,7 +69,7 @@ async def yt_search_cmd(c: Client, m: Message):
 
 @Client.on_message(filters.command("ytdl", PREFIXES))
 @use_chat_lang
-async def ytdlcmd(c: Client, m: Message, strings):
+async def ytdlcmd(c: Client, m: Message, s: Strings):
     user = m.from_user.id
 
     afsize = 0
@@ -80,7 +80,7 @@ async def ytdlcmd(c: Client, m: Message, strings):
     elif len(m.command) > 1:
         url = m.text.split(None, 1)[1]
     else:
-        await m.reply_text(strings("ytdl_missing_argument"))
+        await m.reply_text(s("ytdl_missing_argument"))
         return
 
     ydl = YoutubeDL({"noplaylist": True})
@@ -105,11 +105,11 @@ async def ytdlcmd(c: Client, m: Message, strings):
     keyboard = [
         [
             (
-                strings("ytdl_audio_button"),
+                s("ytdl_audio_button"),
                 f'_aud.{yt["id"]}|{afsize}|{temp}|{m.chat.id}|{user}|{m.id}',
             ),
             (
-                strings("ytdl_video_button"),
+                s("ytdl_video_button"),
                 f'_vid.{yt["id"]}|{vfsize}|{temp}|{m.chat.id}|{user}|{m.id}',
             ),
         ]
@@ -130,49 +130,45 @@ async def ytdlcmd(c: Client, m: Message, strings):
 
 @Client.on_callback_query(filters.regex("^(_(vid|aud))"))
 @use_chat_lang
-async def cli_ytdl(c: Client, cq: CallbackQuery, strings):
+async def cli_ytdl(c: Client, cq: CallbackQuery, s: Strings):
     data, fsize, temp, cid, userid, mid = cq.data.split("|")
     if cq.from_user.id != int(userid):
-        await cq.answer(strings("ytdl_button_denied"), cache_time=60)
+        await cq.answer(s("ytdl_button_denied"), cache_time=60)
         return
     if int(fsize) > MAX_FILESIZE:
         await cq.answer(
-            strings("ytdl_file_too_big"),
+            s("ytdl_file_too_big"),
             show_alert=True,
             cache_time=60,
         )
         return
     vid = re.sub(r"^\_(vid|aud)\.", "", data)
     url = f"https://www.youtube.com/watch?v={vid}"
-    await cq.message.edit_text(strings("ytdl_downloading"))
+    await cq.message.edit_text(s("ytdl_downloading"))
     with tempfile.TemporaryDirectory() as tempdir:
         path = Path(tempdir) / "ytdl"
 
     ttemp = f"⏰ {datetime.timedelta(seconds=int(temp))} | " if int(temp) else ""
     if "vid" in data:
-        ydl = YoutubeDL(
-            {
-                "outtmpl": f"{path}/%(title)s-%(id)s.%(ext)s",
-                "format": "best[ext=mp4]",
-                "max_filesize": MAX_FILESIZE,
-                "noplaylist": True,
-            }
-        )
+        ydl = YoutubeDL({
+            "outtmpl": f"{path}/%(title)s-%(id)s.%(ext)s",
+            "format": "best[ext=mp4]",
+            "max_filesize": MAX_FILESIZE,
+            "noplaylist": True,
+        })
     else:
-        ydl = YoutubeDL(
-            {
-                "outtmpl": f"{path}/%(title)s-%(id)s.%(ext)s",
-                "format": "bestaudio[ext=m4a]",
-                "max_filesize": MAX_FILESIZE,
-                "noplaylist": True,
-            }
-        )
+        ydl = YoutubeDL({
+            "outtmpl": f"{path}/%(title)s-%(id)s.%(ext)s",
+            "format": "bestaudio[ext=m4a]",
+            "max_filesize": MAX_FILESIZE,
+            "noplaylist": True,
+        })
     try:
         yt = await extract_info(ydl, url, download=True)
     except BaseException as e:
-        await cq.message.edit_text(strings("ytdl_send_error").format(errmsg=e))
+        await cq.message.edit_text(s("ytdl_send_error").format(errmsg=e))
         return
-    await cq.message.edit_text(strings("ytdl_sending"))
+    await cq.message.edit_text(s("ytdl_sending"))
     filename = ydl.prepare_filename(yt)
     thumb = io.BytesIO((await http.get(yt["thumbnail"])).content)
     thumb.name = "thumbnail.png"
@@ -205,8 +201,12 @@ async def cli_ytdl(c: Client, cq: CallbackQuery, strings):
                 reply_to_message_id=int(mid),
             )
     except BadRequest as e:
-        await cq.message.edit_text(strings("ytdl_send_error").format(errmsg=e))
+        await cq.message.edit_text(s("ytdl_send_error").format(errmsg=e))
     else:
         await cq.message.delete()
 
     shutil.rmtree(tempdir, ignore_errors=True)
+
+
+commands.add_command("yt", "tools")
+commands.add_command("ytdl", "tools")

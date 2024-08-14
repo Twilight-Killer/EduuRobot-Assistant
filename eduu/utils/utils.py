@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
+
+from __future__ import annotations
 
 import asyncio
-import inspect
 import math
+import operator
 import re
 from datetime import datetime, timedelta
 from functools import partial
-from pathlib import Path
 from string import Formatter
-from typing import List, Optional, Tuple, Union
 
 import httpx
-from pyrogram import Client, emoji, filters
-from pyrogram.enums import ChatMemberStatus, MessageEntityType
-from pyrogram.types import (
+from hydrogram import Client, filters
+from hydrogram.enums import ChatMemberStatus, MessageEntityType
+from hydrogram.types import (
     CallbackQuery,
     ChatPrivileges,
     InlineKeyboardButton,
@@ -52,10 +52,10 @@ def pretty_size(size_bytes):
 
 
 async def check_perms(
-    message: Union[CallbackQuery, Message],
-    permissions: Optional[ChatPrivileges] = None,
+    message: CallbackQuery | Message,
+    permissions: ChatPrivileges | None = None,
     complain_missing_perms: bool = True,
-    strings=None,
+    s=None,
 ) -> bool:
     if isinstance(message, CallbackQuery):
         sender = partial(message.answer, show_alert=True)
@@ -73,7 +73,7 @@ async def check_perms(
         return True
     if user.status != ChatMemberStatus.ADMINISTRATOR:
         if complain_missing_perms:
-            await sender(strings("no_admin_error"))
+            await sender(s("admins_no_admin_error"))
         return False
 
     missing_perms = [
@@ -85,15 +85,15 @@ async def check_perms(
     if not missing_perms:
         return True
     if complain_missing_perms:
-        await sender(strings("no_permission_error").format(permissions=", ".join(missing_perms)))
+        await sender(s("admins_no_permission_error").format(permissions=", ".join(missing_perms)))
     return False
 
 
 sudofilter = filters.user(SUDOERS)
 
 
-async def extract_time(m: Message, time: str) -> Optional[datetime]:
-    if time[-1] not in ["m", "h", "d"]:
+async def extract_time(m: Message, time: str) -> datetime | None:
+    if time[-1] not in {"m", "h", "d"}:
         await m.reply_text("Invalid time format. Use 'h'/'m'/'d' ")
         return None
 
@@ -127,7 +127,7 @@ def remove_escapes(text: str) -> str:
     return res
 
 
-def split_quotes(text: str) -> List:
+def split_quotes(text: str) -> list:
     if not any(text.startswith(char) for char in START_CHAR):
         return text.split(None, 1)
     counter = 1  # ignore first char -> is some kind of quote
@@ -147,7 +147,7 @@ def split_quotes(text: str) -> List:
     return list(filter(None, [key, rest]))
 
 
-def button_parser(text_note: str) -> Tuple[str, List[InlineKeyboardButton]]:
+def button_parser(text_note: str) -> tuple[str, list[InlineKeyboardButton]]:
     """Parse a string and return the parsed string and buttons.
 
     Parameters
@@ -192,25 +192,6 @@ def button_parser(text_note: str) -> Tuple[str, List[InlineKeyboardButton]]:
     return note_data, buttons
 
 
-def get_caller_context(depth: int = 2) -> str:
-    """Get the context of the caller of the function calling this function.
-
-    Parameters
-    ----------
-    depth: int
-        Depth of the caller. Defaults to 2.
-
-    Returns
-    -------
-    str
-        The context of the caller.
-    """
-    fpath = Path(inspect.stack()[depth].filename)
-    cwd = Path.cwd()
-    fpath = fpath.relative_to(cwd)
-    return fpath.parts[2] if len(fpath.parts) == 4 else fpath.stem
-
-
 class BotCommands:
     def __init__(self):
         self.commands = {}
@@ -219,38 +200,35 @@ class BotCommands:
         self,
         command: str,
         category: str,
-        aliases: Optional[list] = None,
+        aliases: list | None = None,
     ):
-        context = get_caller_context()
-
-        description_key = f"{command}_description"
+        description_key = f"cmd_{command}_description"
 
         if self.commands.get(category) is None:
             self.commands[category] = []
-        self.commands[category].append(
-            {
-                "command": command,
-                "description_key": description_key,
-                "context": context,
-                "aliases": aliases or [],
-            }
-        )
+        self.commands[category].append({
+            "command": command,
+            "description_key": description_key,
+            "aliases": aliases or [],
+        })
 
-    def get_commands_message(self, strings, category: Optional[str] = None):
+    def get_commands_message(self, s, category: str | None = None):
         # TODO: Add pagination support.
         if category is None:
             cmds_list = []
-            for category in self.commands:
-                cmds_list += self.commands[category]
+            for subcategory in self.commands:
+                cmds_list += self.commands[subcategory]
         else:
             cmds_list = self.commands[category]
 
-        res = strings("command_category_title").format(category=strings(category)) + "\n\n"
+        res = (
+            s("cmds_list_category_title").format(category=s(f"cmds_category_{category}")) + "\n\n"
+        )
 
-        cmds_list.sort(key=lambda k: k["command"])
+        cmds_list.sort(key=operator.itemgetter("command"))
 
         for cmd in cmds_list:
-            res += f"<b>/{cmd['command']}</b> - <i>{strings(cmd['description_key'], context=cmd['context'])}</i>\n"
+            res += f"<b>/{cmd['command']}</b> - <i>{s(cmd['description_key'])}</i>\n"
 
         return res
 
@@ -262,25 +240,20 @@ class InlineBotCommands:
     def add_command(
         self,
         command: str,
-        aliases: Optional[list] = None,
+        aliases: list | None = None,
     ):
-        context = get_caller_context()
+        description_key = f"inline_cmd_{command.split()[0]}_description"
 
-        description_key = f"{command.split()[0]}_description"
+        self.commands.append({
+            "command": command,
+            "description_key": description_key,
+            "aliases": aliases or [],
+        })
 
-        self.commands.append(
-            {
-                "command": command,
-                "description_key": description_key,
-                "context": context,
-                "aliases": aliases or [],
-            }
-        )
-
-    def search_commands(self, query: Optional[str] = None):
+    def search_commands(self, query: str | None = None):
         return [
             cmd
-            for cmd in sorted(self.commands, key=lambda k: k["command"])
+            for cmd in sorted(self.commands, key=operator.itemgetter("command"))
             if (
                 not query
                 or query.lower() in cmd["command"]
@@ -291,20 +264,6 @@ class InlineBotCommands:
 
 commands = BotCommands()
 inline_commands = InlineBotCommands()
-
-
-def get_emoji_regex():
-    e_list = [
-        getattr(emoji, e).encode("unicode-escape").decode("ASCII")
-        for e in dir(emoji)
-        if not e.startswith("_")
-    ]
-    # to avoid re.error excluding char that start with '*'
-    e_sort = sorted([x for x in e_list if not x.startswith("*")], reverse=True)
-    # Sort emojis by length to make sure multi-character emojis are
-    # matched first
-    pattern_ = f"({'|'.join(e_sort)})"
-    return re.compile(pattern_)
 
 
 async def get_target_user(c: Client, m: Message) -> User:
@@ -320,7 +279,7 @@ async def get_target_user(c: Client, m: Message) -> User:
     )
 
 
-async def get_reason_text(c: Client, m: Message) -> Message:
+def get_reason_text(c: Client, m: Message) -> Message:
     reply = m.reply_to_message
     spilt_text = m.text.split
 
@@ -330,9 +289,6 @@ async def get_reason_text(c: Client, m: Message) -> Message:
         return spilt_text(None, 1)[1]
 
     return None
-
-
-EMOJI_PATTERN = get_emoji_regex()
 
 
 # Thank github.com/usernein for shell_exec
@@ -345,7 +301,7 @@ async def shell_exec(code):
     return stdout, process
 
 
-def get_format_keys(string: str) -> List[str]:
+def get_format_keys(string: str) -> list[str]:
     """Return a list of formatting keys present in string.
 
     Parameters

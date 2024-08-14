@@ -1,16 +1,12 @@
 """EduuRobot utilities."""
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
-
-from typing import List
+# Copyright (c) 2018-2024 Amano LLC
 
 from .utils import (
-    EMOJI_PATTERN,
     button_parser,
     check_perms,
     commands,
     extract_time,
-    get_emoji_regex,
     get_format_keys,
     get_reason_text,
     get_target_user,
@@ -25,12 +21,11 @@ from .utils import (
     sudofilter,
 )
 
-__all__: List[str] = [
-    "EMOJI_PATTERN",
+__all__: list[str] = [
     "button_parser",
     "check_perms",
     "commands",
-    "get_emoji_regex",
+    "extract_time",
     "get_format_keys",
     "get_reason_text",
     "get_target_user",
@@ -43,5 +38,4 @@ __all__: List[str] = [
     "shell_exec",
     "split_quotes",
     "sudofilter",
-    "extract_time",
 ]

@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
+
+from __future__ import annotations
 
 import re
-from typing import Union
 
-from pyrogram import Client, filters
-from pyrogram.types import (
+from hydrogram import Client, filters
+from hydrogram.types import (
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
@@ -14,7 +15,7 @@ from pyrogram.types import (
 
 from config import PREFIXES
 from eduu.utils import commands, http, inline_commands
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 # Api key used in weather.com's mobile app.
 weather_apikey = "8de2d8b3a93542c9a2d8b3a935a2c909"
@@ -81,21 +82,21 @@ def get_status_emoji(status_code: int) -> str:
 
 
 @Client.on_message(filters.command(["clima", "weather"], PREFIXES))
-@Client.on_inline_query(filters.regex(r"^(clima|weather) .+", re.I))
+@Client.on_inline_query(filters.regex(r"^(clima|weather) .+", re.IGNORECASE))
 @use_chat_lang
-async def weather(c: Client, m: Union[InlineQuery, Message], strings):
+async def weather(c: Client, m: InlineQuery | Message, s: Strings):
     text = m.text if isinstance(m, Message) else m.query
     if len(text.split(maxsplit=1)) == 1:
         if isinstance(m, Message):
-            await m.reply_text(strings("weather_usage"))
+            await m.reply_text(s("weather_usage"))
             return
 
         await m.answer(
             [
                 InlineQueryResultArticle(
-                    title=strings("no_location"),
+                    title=s("no_location"),
                     input_message_content=InputTextMessageContent(
-                        message_text=strings("weather_no_location"),
+                        message_text=s("weather_no_location"),
                     ),
                 )
             ],
@@ -109,22 +110,22 @@ async def weather(c: Client, m: Union[InlineQuery, Message], strings):
         params={
             "apiKey": weather_apikey,
             "format": "json",
-            "language": strings("weather_language"),
+            "language": s("weather_language"),
             "query": text.split(maxsplit=1)[1],
         },
     )
     loc_json = r.json()
     if not loc_json.get("location"):
         if isinstance(m, Message):
-            await m.reply_text(strings("location_not_found"))
+            await m.reply_text(s("location_not_found"))
             return
 
         await m.answer(
             [
                 InlineQueryResultArticle(
-                    title=strings("location_not_found"),
+                    title=s("location_not_found"),
                     input_message_content=InputTextMessageContent(
-                        message_text=strings("location_not_found"),
+                        message_text=s("location_not_found"),
                     ),
                 )
             ],
@@ -139,16 +140,16 @@ async def weather(c: Client, m: Union[InlineQuery, Message], strings):
         params={
             "apiKey": weather_apikey,
             "format": "json",
-            "language": strings("weather_language"),
+            "language": s("weather_language"),
             "geocode": pos,
-            "units": strings("measurement_unit"),
+            "units": s("measurement_unit"),
         },
     )
     res_json = r.json()
 
     obs_dict = res_json["v3-wx-observations-current"]
 
-    res = strings("details").format(
+    res = s("details").format(
         location=loc_json["location"]["address"][0],
         temperature=obs_dict["temperature"],
         feels_like=obs_dict["temperatureFeelsLike"],
@@ -165,7 +166,7 @@ async def weather(c: Client, m: Union[InlineQuery, Message], strings):
         [
             InlineQueryResultArticle(
                 title=loc_json["location"]["address"][0],
-                description=strings("inline_details").format(
+                description=s("inline_details").format(
                     temperature=obs_dict["temperature"],
                     feels_like=obs_dict["temperatureFeelsLike"],
                     air_humidity=obs_dict["relativeHumidity"],

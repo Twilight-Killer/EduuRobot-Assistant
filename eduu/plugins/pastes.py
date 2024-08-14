@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 from typing import TYPE_CHECKING
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.types import Message
 
 from config import PREFIXES
 from eduu.utils import commands, http
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 if TYPE_CHECKING:
     from io import BytesIO
@@ -16,9 +16,9 @@ if TYPE_CHECKING:
 
 @Client.on_message(filters.command("paste", PREFIXES))
 @use_chat_lang
-async def paste(c: Client, m: Message, strings):
+async def paste(c: Client, m: Message, s: Strings):
     if not m.reply_to_message:
-        await m.reply_text(strings("reply_to_document_or_text"))
+        await m.reply_text(s("pastes_reply_to_document_or_text"))
         return
 
     if m.reply_to_message.document:

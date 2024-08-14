@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
-from typing import Iterable
+from collections.abc import Iterable
 
-from pyrogram.enums import ChatMemberStatus, ChatType
+from hydrogram.enums import ChatMemberStatus, ChatType
 
 GROUP_TYPES: Iterable[ChatType] = (ChatType.GROUP, ChatType.SUPERGROUP)
 

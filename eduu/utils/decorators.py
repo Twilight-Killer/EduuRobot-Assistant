@@ -1,21 +1,24 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
+
+from __future__ import annotations
 
 import asyncio
 from functools import partial, wraps
-from typing import Callable, Optional, Union
+from typing import TYPE_CHECKING
 
-from pyrogram import Client, StopPropagation
-from pyrogram.enums import ChatType
-from pyrogram.types import CallbackQuery, ChatPrivileges, Message
+from hydrogram import Client, StopPropagation
+from hydrogram.enums import ChatType
+from hydrogram.types import CallbackQuery, ChatPrivileges, Message
 
 from eduu.utils.localization import (
-    default_language,
     get_lang,
     get_locale_string,
-    langdict,
 )
 from eduu.utils.utils import check_perms
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def aiowrap(func: Callable) -> Callable:
@@ -30,7 +33,7 @@ def aiowrap(func: Callable) -> Callable:
 
 
 def require_admin(
-    permissions: Optional[ChatPrivileges] = None,
+    permissions: ChatPrivileges | None = None,
     allow_in_private: bool = False,
     complain_missing_perms: bool = True,
 ):
@@ -54,13 +57,11 @@ def require_admin(
 
     def decorator(func):
         @wraps(func)
-        async def wrapper(client: Client, message: Union[CallbackQuery, Message], *args, **kwargs):
+        async def wrapper(client: Client, message: CallbackQuery | Message, *args, **kwargs):
             lang = await get_lang(message)
-            strings = partial(
+            s = partial(
                 get_locale_string,
-                langdict[lang].get("admins", langdict[default_language]["admins"]),
                 lang,
-                "admins",
             )
 
             if isinstance(message, CallbackQuery):
@@ -78,10 +79,10 @@ def require_admin(
             if msg.chat.type == ChatType.PRIVATE:
                 if allow_in_private:
                     return await func(client, message, *args, *kwargs)
-                return await sender(strings("private_not_allowed"))
+                return await sender(s("cmd_private_not_allowed"))
             if msg.chat.type == ChatType.CHANNEL:
                 return await func(client, message, *args, *kwargs)
-            has_perms = await check_perms(message, permissions, complain_missing_perms, strings)
+            has_perms = await check_perms(message, permissions, complain_missing_perms, s)
             if has_perms:
                 return await func(client, message, *args, *kwargs)
             return None

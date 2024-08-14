@@ -1,22 +1,22 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 import uuid
 from json import JSONDecodeError
 
 from httpx import HTTPError
-from pyrogram import Client, filters
-from pyrogram.enums import MessageEntityType
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.enums import MessageEntityType
+from hydrogram.types import Message
 
 from config import PREFIXES
 from eduu.utils import commands, http
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 
 @Client.on_message(filters.command("print", PREFIXES))
 @use_chat_lang
-async def prints(c: Client, m: Message, strings):
+async def prints(c: Client, m: Message, s: Strings):
     # Get the target URl from the message using Telegram entities.
     # If there is no URL, try to get an URL from the replied message.
     # If there is no URL in the replied message, fail.
@@ -33,7 +33,7 @@ async def prints(c: Client, m: Message, strings):
             break
     else:
         if not m.reply_to_message:
-            await m.reply_text(strings("print_usage"))
+            await m.reply_text(s("print_usage"))
             return
 
         for entity in m.reply_to_message.entities or m.reply_to_message.caption_entities:
@@ -51,10 +51,10 @@ async def prints(c: Client, m: Message, strings):
                 target_url = entity.url
                 break
         else:
-            await m.reply_text(strings("print_usage"))
+            await m.reply_text(s("print_usage"))
             return
 
-    sent = await m.reply_text(strings("taking_screenshot"))
+    sent = await m.reply_text(s("print_taking_screenshot"))
 
     try:
         response = await screenshot_page(target_url)

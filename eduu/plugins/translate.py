@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 import html
 import re
 
 from gpytranslate import Translator
-from pyrogram import Client, filters
-from pyrogram.types import (
+from hydrogram import Client, filters
+from hydrogram.types import (
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
@@ -15,7 +15,7 @@ from pyrogram.types import (
 
 from config import PREFIXES
 from eduu.utils import commands, inline_commands
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 tr = Translator()
 
@@ -67,7 +67,7 @@ def get_tr_lang(text):
 
 @Client.on_message(filters.command("tr", PREFIXES))
 @use_chat_lang
-async def translate(c: Client, m: Message, strings):
+async def translate(c: Client, m: Message, s: Strings):
     text = m.text[4:]
     lang = get_tr_lang(text)
 
@@ -77,10 +77,10 @@ async def translate(c: Client, m: Message, strings):
         text = m.reply_to_message.text or m.reply_to_message.caption
 
     if not text:
-        await m.reply_text(strings("translate_usage"), reply_to_message_id=m.id)
+        await m.reply_text(s("tr_usage"), reply_to_message_id=m.id)
         return
 
-    sent = await m.reply_text(strings("translating"), reply_to_message_id=m.id)
+    sent = await m.reply_text(s("tr_translating"), reply_to_message_id=m.id)
     langs = {}
 
     if len(lang.split("-")) > 1:
@@ -94,30 +94,28 @@ async def translate(c: Client, m: Message, strings):
 
     res = html.escape(text)
     await sent.edit_text(
-        strings("translation").format(
+        s("tr_translation").format(
             from_lang=trres.lang, to_lang=langs["targetlang"], translation=res
         )
     )
 
 
-@Client.on_inline_query(filters.regex(r"^tr .+", re.I))
+@Client.on_inline_query(filters.regex(r"^tr .+", re.IGNORECASE))
 @use_chat_lang
-async def tr_inline(c: Client, q: InlineQuery, strings):
+async def tr_inline(c: Client, q: InlineQuery, s: Strings):
     to_tr = q.query.split(None, 2)[2]
     source_language = await tr.detect(q.query.split(None, 2)[2])
     to_language = q.query.lower().split()[1]
     translation = await tr(to_tr, sourcelang=source_language, targetlang=to_language)
-    await q.answer(
-        [
-            InlineQueryResultArticle(
-                title=strings("translate_inline_send").format(
-                    srclangformat=source_language, tolangformat=to_language
-                ),
-                description=f"{translation.text}",
-                input_message_content=InputTextMessageContent(f"{translation.text}"),
-            )
-        ]
-    )
+    await q.answer([
+        InlineQueryResultArticle(
+            title=s("tr_inline_send").format(
+                srclangformat=source_language, tolangformat=to_language
+            ),
+            description=f"{translation.text}",
+            input_message_content=InputTextMessageContent(f"{translation.text}"),
+        )
+    ])
 
 
 commands.add_command("tr", "tools")

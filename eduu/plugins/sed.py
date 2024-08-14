@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 import html
 
 import regex
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.types import Message
 
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 
 @Client.on_message(filters.regex(r"^s/(.+)?/(.+)?(/.+)?") & filters.reply)
 @use_chat_lang
-async def sed(c: Client, m: Message, strings):
+async def sed(c: Client, m: Message, s: Strings):
     exp = regex.split(r"(?<![^\\]\\)/", m.text)
     pattern = exp[1]
     replace_with = exp[2].replace(r"\/", "/")
@@ -36,7 +36,7 @@ async def sed(c: Client, m: Message, strings):
     try:
         res = regex.sub(pattern, replace_with, text, count=count, flags=rflags, timeout=1)
     except TimeoutError:
-        await m.reply_text(strings("regex_timeout"))
+        await m.reply_text(s("sed_regex_timeout"))
     except regex.error as e:
         await m.reply_text(str(e))
     else:

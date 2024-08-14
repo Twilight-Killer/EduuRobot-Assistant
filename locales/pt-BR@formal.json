@@ -1,0 +1,9 @@
+{
+  "_meta_language_flag": "🇧🇷",
+  "_meta_language_name": "Português (Estendido)",
+  "language_changed_successfully": "Com êxito foi concluída a operação de alteração da linguagem, agora você está apto a utilizar todas as funcionalidades da plataforma na língua selecionada.",
+  "language_changer_chat": "Este é o local designado para que você possa efetuar a troca da língua utilizada pelo bot durante as interações no bate-papo.\nContudo, se você percebeu que a língua desejada não está presente na lista de opções disponíveis e gostaria de contribuir para sua inclusão, por favor, acesse @AmanoChat, para que possamos atender sua solicitação.",
+  "language_changer_private": "Este é o local onde você pode efetuar a modificação da língua padrão que será utilizada pelo bot durante a comunicação no chat privado.\n\nNo entanto, se você deseja que a língua seja alterada no grupo, faça uso do comando <code>/setchatlang</code> no ambiente correspondente.\nCaso a língua desejada não esteja disponível na lista e você queira contribuir para a sua inclusão, siga o caminho para o usuário @AmanoChat.",
+  "start_group": "Saudações, caro utilizador! A alcunha geralmente à mim atribuída é a de EduuRobot. Para que você possa descobrir as minhas habilidades e capacidades, permita-me sugerir que inicie uma conversa comigo, para que possamos trocar informações e conhecimentos.",
+  "start_private": "Saudações, caro utilizador! A alcunha geralmente à mim atribuída é a de EduuRobot. Para que todas as minhas aplicabilidades sejam anexadas ao seu conhecimento, faz-se mister que vossa mercê prima a vossa digital ou o indicador do vosso mouse sobre o botão, dentre os que estão dispostos inferiormente à esta mensagem, correspondente a função desejada."
+}

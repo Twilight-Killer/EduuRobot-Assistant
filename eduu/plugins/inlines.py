@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 import re
-from typing import Iterable, List
+from collections.abc import Iterable
 
-from pyrogram import Client, filters
-from pyrogram.enums import ParseMode
-from pyrogram.errors import PeerIdInvalid, UserIdInvalid, UsernameInvalid
-from pyrogram.types import (
+from hydrogram import Client, filters
+from hydrogram.enums import ParseMode
+from hydrogram.errors import PeerIdInvalid, UserIdInvalid, UsernameInvalid
+from hydrogram.types import (
     InlineKeyboardMarkup,
     InlineQuery,
     InlineQueryResultArticle,
@@ -15,7 +15,7 @@ from pyrogram.types import (
 )
 
 from eduu.utils import button_parser, inline_commands
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 faces_list: Iterable[str] = (
     "¯\\_(ツ)_/¯",
@@ -57,9 +57,9 @@ faces_list: Iterable[str] = (
 )
 
 
-@Client.on_inline_query(filters.regex(r"^face", re.I))
+@Client.on_inline_query(filters.regex(r"^face", re.IGNORECASE))
 async def faces_inline(c: Client, q: InlineQuery):
-    results: List[InlineQueryResultArticle] = [
+    results: list[InlineQueryResultArticle] = [
         InlineQueryResultArticle(title=i, input_message_content=InputTextMessageContent(i))
         for i in faces_list
     ]
@@ -67,49 +67,39 @@ async def faces_inline(c: Client, q: InlineQuery):
     await q.answer(results)
 
 
-@Client.on_inline_query(filters.regex(r"^markdown .+", re.I))
+@Client.on_inline_query(filters.regex(r"^markdown .+", re.IGNORECASE))
 @use_chat_lang
-async def markdown_inline(c: Client, q: InlineQuery, strings):
+async def markdown_inline(c: Client, q: InlineQuery, s: Strings):
     queryinputres = q.query.split(None, 1)[1]
     querytxt, querybuttons = button_parser(queryinputres)
-    await q.answer(
-        [
-            InlineQueryResultArticle(
-                title=strings("markdown_send_inline"),
-                input_message_content=InputTextMessageContent(
-                    querytxt, parse_mode=ParseMode.MARKDOWN
-                ),
-                reply_markup=(
-                    InlineKeyboardMarkup(querybuttons) if len(querybuttons) != 0 else None
-                ),
-            )
-        ]
-    )
+    await q.answer([
+        InlineQueryResultArticle(
+            title=s("markdown_send_inline"),
+            input_message_content=InputTextMessageContent(querytxt, parse_mode=ParseMode.MARKDOWN),
+            reply_markup=(InlineKeyboardMarkup(querybuttons) if len(querybuttons) != 0 else None),
+        )
+    ])
 
 
-@Client.on_inline_query(filters.regex(r"^html .+", re.I))
+@Client.on_inline_query(filters.regex(r"^html .+", re.IGNORECASE))
 @use_chat_lang
-async def html_inline(c: Client, q: InlineQuery, strings):
+async def html_inline(c: Client, q: InlineQuery, s: Strings):
     queryinputres = q.query.split(None, 1)[1]
     querytxt, querybuttons = button_parser(queryinputres)
-    await q.answer(
-        [
-            InlineQueryResultArticle(
-                title=strings("html_send_inline"),
-                input_message_content=InputTextMessageContent(
-                    querytxt,
-                ),
-                reply_markup=(
-                    InlineKeyboardMarkup(querybuttons) if len(querybuttons) != 0 else None
-                ),
-            )
-        ]
-    )
+    await q.answer([
+        InlineQueryResultArticle(
+            title=s("html_send_inline"),
+            input_message_content=InputTextMessageContent(
+                querytxt,
+            ),
+            reply_markup=(InlineKeyboardMarkup(querybuttons) if len(querybuttons) != 0 else None),
+        )
+    ])
 
 
-@Client.on_inline_query(filters.regex(r"^info .+", re.I))
+@Client.on_inline_query(filters.regex(r"^info .+", re.IGNORECASE))
 @use_chat_lang
-async def info_inline(c: Client, q: InlineQuery, strings):
+async def info_inline(c: Client, q: InlineQuery, s: Strings):
     try:
         if q.query == "info":
             user = q.from_user
@@ -117,32 +107,28 @@ async def info_inline(c: Client, q: InlineQuery, strings):
             txt = q.query.lower().split(None, 1)[1]
             user = await c.get_users(txt)
     except (PeerIdInvalid, UsernameInvalid, UserIdInvalid):
-        await q.answer(
-            [
-                InlineQueryResultArticle(
-                    title=strings("user_info_inline_cant_found_user"),
-                    input_message_content=InputTextMessageContent(
-                        strings("user_info_inline_cant_found_user")
-                    ),
-                )
-            ]
-        )
-        return
-    await q.answer(
-        [
+        await q.answer([
             InlineQueryResultArticle(
-                title=strings("user_info_inline_send"),
+                title=s("user_info_inline_couldnt_find_user"),
                 input_message_content=InputTextMessageContent(
-                    strings("user_info_inline_string").format(
-                        usernameformat=user.username,
-                        useridformat=user.id,
-                        userdcformat=user.dc_id,
-                        usermentionformat=user.mention(),
-                    ),
+                    s("user_info_inline_couldnt_find_user")
                 ),
             )
-        ]
-    )
+        ])
+        return
+    await q.answer([
+        InlineQueryResultArticle(
+            title=s("user_info_inline_send"),
+            input_message_content=InputTextMessageContent(
+                s("user_info_inline_string").format(
+                    usernameformat=user.username,
+                    useridformat=user.id,
+                    userdcformat=user.dc_id,
+                    usermentionformat=user.mention(),
+                ),
+            ),
+        )
+    ])
 
 
 inline_commands.add_command("faces")

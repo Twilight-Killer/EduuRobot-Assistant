@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
+
+from __future__ import annotations
 
 from itertools import zip_longest
-from typing import Union
 
-from pyrogram import Client, filters
-from pyrogram.enums import ChatType
-from pyrogram.types import (
+from hydrogram import Client, filters
+from hydrogram.enums import ChatType
+from hydrogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -16,14 +17,14 @@ from pyrogram.types import (
 from config import PREFIXES
 from eduu.database.localization import set_db_lang
 from eduu.utils.decorators import require_admin
-from eduu.utils.localization import langdict, use_chat_lang
+from eduu.utils.localization import Strings, langdict, use_chat_lang
 
 
 def gen_langs_kb():
     return [
         [
             InlineKeyboardButton(
-                f"{langdict[lang]['main']['language_flag']} {langdict[lang]['main']['language_name']}",
+                f"{langdict[lang]['_meta_language_flag']} {langdict[lang]['_meta_language_name']}",
                 callback_data=f"set_lang {lang}",
             )
             for lang in langs
@@ -37,15 +38,11 @@ def gen_langs_kb():
 @Client.on_message(filters.command(["setchatlang", "setlang"], PREFIXES) & filters.group)
 @require_admin(allow_in_private=True)
 @use_chat_lang
-async def chlang(c: Client, m: Union[CallbackQuery, Message], strings):
+async def chlang(c: Client, m: CallbackQuery | Message, s: Strings):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             *gen_langs_kb(),
-            [
-                InlineKeyboardButton(
-                    strings("back_btn", context="general"), callback_data="start_back"
-                )
-            ],
+            [InlineKeyboardButton(s("general_back_btn"), callback_data="start_back")],
         ]
     )
 
@@ -57,9 +54,9 @@ async def chlang(c: Client, m: Union[CallbackQuery, Message], strings):
         sender = msg.reply_text
 
     res = (
-        strings("language_changer_private")
+        s("language_changer_private")
         if msg.chat.type == ChatType.PRIVATE
-        else strings("language_changer_chat")
+        else s("language_changer_chat")
     )
 
     await sender(res, reply_markup=keyboard)
@@ -75,13 +72,13 @@ async def set_chat_lang(c: Client, m: CallbackQuery):
 
 
 @use_chat_lang
-async def set_chat_lang_edit(c: Client, m: CallbackQuery, strings):
+async def set_chat_lang_edit(c: Client, m: CallbackQuery, s: Strings):
     if m.message.chat.type == ChatType.PRIVATE:
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        strings("back_btn", context="general"),
+                        s("general_back_btn"),
                         callback_data="start_back",
                     )
                 ]
@@ -89,4 +86,4 @@ async def set_chat_lang_edit(c: Client, m: CallbackQuery, strings):
         )
     else:
         keyboard = None
-    await m.message.edit_text(strings("language_changed_successfully"), reply_markup=keyboard)
+    await m.message.edit_text(s("language_changed_successfully"), reply_markup=keyboard)

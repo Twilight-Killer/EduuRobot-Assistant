@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 import logging
 
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.types import Message
 
 from config import PREFIXES, TENOR_API_KEY
 from eduu.utils import commands, http
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,9 @@ if not TENOR_API_KEY:
 
 @Client.on_message(filters.command("gif", PREFIXES))
 @use_chat_lang
-async def gif(c: Client, m: Message, strings):
+async def gif(c: Client, m: Message, s: Strings):
     if len(m.command) == 1:
-        await m.reply_text(strings("gif_usage"))
+        await m.reply_text(s("gif_usage"))
         return
 
     text = m.text.split(maxsplit=1)[1]
@@ -32,7 +32,7 @@ async def gif(c: Client, m: Message, strings):
     )
     rjson = r.json()
     if not rjson["results"]:
-        await m.reply_text(strings("no_results", context="general"))
+        await m.reply_text(s("general_no_results"))
         return
 
     res = rjson["results"][0]["media"][0]["mediumgif"]["url"]

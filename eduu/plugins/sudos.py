@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
+
+from __future__ import annotations
 
 import asyncio
 import html
@@ -11,24 +13,26 @@ import time
 import traceback
 from contextlib import redirect_stdout, suppress
 from sqlite3 import IntegrityError, OperationalError
-from typing import Union
+from typing import TYPE_CHECKING
 
 import humanfriendly
 import speedtest
+from hydrogram import Client, filters
+from hydrogram.enums import ChatType
+from hydrogram.errors import RPCError
 from meval import meval
-from pyrogram import Client, filters
-from pyrogram.enums import ChatType
-from pyrogram.errors import RPCError
-from pyrogram.types import Message
 
 from config import DATABASE_PATH
 from eduu.database import database
 from eduu.database.restarted import set_restarted
 from eduu.utils import sudofilter
-from eduu.utils.localization import use_chat_lang
+from eduu.utils.localization import Strings, use_chat_lang
 from eduu.utils.utils import shell_exec
 
-prefix: Union[list, str] = "!"
+if TYPE_CHECKING:
+    from hydrogram.types import Message
+
+prefix: list | str = "!"
 
 conn = database.get_conn()
 
@@ -40,10 +44,10 @@ async def sudos(c: Client, m: Message):
 
 @Client.on_message(filters.command("cmd", prefix) & sudofilter)
 @use_chat_lang
-async def run_cmd(c: Client, m: Message, strings):
+async def run_cmd(c: Client, m: Message, s: Strings):
     cmd = m.text.split(maxsplit=1)[1]
     if re.match("(?i)poweroff|halt|shutdown|reboot", cmd):
-        await m.reply_text(strings("forbidden_command"))
+        await m.reply_text(s("sudos_forbidden_command"))
         return
 
     stdout, stderr = await shell_exec(cmd)
@@ -55,7 +59,7 @@ async def run_cmd(c: Client, m: Message, strings):
 
 @Client.on_message(filters.command("upgrade", prefix) & sudofilter)
 @use_chat_lang
-async def upgrade(c: Client, m: Message, strings):
+async def upgrade(c: Client, m: Message, s: Strings):
     sm = await m.reply_text("Upgrading sources…")
     stdout, proc = await shell_exec("git pull --no-edit")
     if proc.returncode != 0:
@@ -67,7 +71,7 @@ async def upgrade(c: Client, m: Message, strings):
     if "Already up to date." in stdout:
         await sm.edit_text("There's nothing to upgrade.")
     else:
-        await sm.edit_text(strings("restarting"))
+        await sm.edit_text(s("sudos_restarting"))
         await set_restarted(sm.chat.id, sm.id)
         await conn.commit()
         args = [sys.executable, "-m", "eduu"]
@@ -110,10 +114,10 @@ async def execs(c: Client, m: Message):
     await m.reply_text(out)
 
 
-@Client.on_message(filters.command("speedtest", prefix) & sudofilter)
+@Client.on_message(filters.command("sudos_speedtest", prefix) & sudofilter)
 @use_chat_lang
-async def test_speed(c: Client, m: Message, strings):
-    string = strings("speedtest")
+async def test_speed(c: Client, m: Message, s: Strings):
+    string = s("sudos_speedtest")
     sent = await m.reply_text(string.format(host="", ping="", download="", upload=""))
     s = speedtest.Speedtest()
     bs = s.get_best_server()
@@ -164,8 +168,8 @@ async def execsql(c: Client, m: Message):
 
 @Client.on_message(filters.command("restart", prefix) & sudofilter)
 @use_chat_lang
-async def restart(c: Client, m: Message, strings):
-    sent = await m.reply_text(strings("restarting"))
+async def restart(c: Client, m: Message, s: Strings):
+    sent = await m.reply_text(s("sudos_restarting"))
     await set_restarted(sent.chat.id, sent.id)
     await conn.commit()
     args = [sys.executable, "-m", "eduu"]

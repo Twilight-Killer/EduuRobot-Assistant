@@ -1,32 +1,33 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
 from io import BytesIO
 
-from PIL import Image, ImageOps
-from pyrogram import Client, filters
-from pyrogram.enums import MessageEntityType
-from pyrogram.errors import PeerIdInvalid, StickersetInvalid
-from pyrogram.raw.functions.messages import GetStickerSet, SendMedia
-from pyrogram.raw.functions.stickers import AddStickerToSet, CreateStickerSet
-from pyrogram.raw.types import (
+from emoji_regex import emoji_regex
+from hydrogram import Client, filters
+from hydrogram.enums import MessageEntityType
+from hydrogram.errors import PeerIdInvalid, StickersetInvalid
+from hydrogram.raw.functions.messages import GetStickerSet, SendMedia
+from hydrogram.raw.functions.stickers import AddStickerToSet, CreateStickerSet
+from hydrogram.raw.types import (
     DocumentAttributeFilename,
     InputDocument,
     InputMediaUploadedDocument,
     InputStickerSetItem,
     InputStickerSetShortName,
 )
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from hydrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from PIL import Image, ImageOps
 
 from config import LOG_CHAT, PREFIXES
-from eduu.utils import EMOJI_PATTERN, http
-from eduu.utils.localization import use_chat_lang
+from eduu.utils import http
+from eduu.utils.localization import Strings, use_chat_lang
 
 
 @Client.on_message(filters.command(["kang", "kibe", "steal"], PREFIXES))
 @use_chat_lang
-async def kang_sticker(c: Client, m: Message, strings):
-    prog_msg = await m.reply_text(strings("kanging_sticker_msg"))
+async def kang_sticker(c: Client, m: Message, s: Strings):
+    prog_msg = await m.reply_text(s("kang_kanging_sticker_msg"))
     bot_username = c.me.username
     sticker_emoji = "🤔"
     packnum = 0
@@ -37,11 +38,8 @@ async def kang_sticker(c: Client, m: Message, strings):
     user = await c.resolve_peer(m.from_user.username or m.from_user.id)
     if reply and reply.media:
         if (
-            not reply.photo
-            and reply.document
-            and "image" in reply.document.mime_type
-            or reply.photo
-        ):
+            not reply.photo and reply.document and "image" in reply.document.mime_type
+        ) or reply.photo:
             resize = True
         elif reply.document and "tgsticker" in reply.document.mime_type:
             animated = True
@@ -49,7 +47,7 @@ async def kang_sticker(c: Client, m: Message, strings):
             pass
         elif reply.sticker:
             if not reply.sticker.file_name:
-                await prog_msg.edit_text(strings("err_sticker_no_file_name"))
+                await prog_msg.edit_text(s("kang_err_sticker_no_file_name"))
                 return
             if reply.sticker.emoji:
                 sticker_emoji = reply.sticker.emoji
@@ -57,7 +55,7 @@ async def kang_sticker(c: Client, m: Message, strings):
             if not reply.sticker.file_name.endswith(".tgs"):
                 resize = True
         else:
-            await prog_msg.edit_text(strings("invalid_media_string"))
+            await prog_msg.edit_text(s("kang_invalid_media_string"))
             return
         pack_prefix = "anim" if animated else "a"
         packname = f"{pack_prefix}_{m.from_user.id}_by_{bot_username}"
@@ -69,7 +67,7 @@ async def kang_sticker(c: Client, m: Message, strings):
         if len(m.command) > 1:
             # matches all valid emojis in input
             sticker_emoji = (
-                "".join(set(EMOJI_PATTERN.findall("".join(m.command[1:])))) or sticker_emoji
+                "".join(set(emoji_regex.findall("".join(m.command[1:])))) or sticker_emoji
             )
         file = await c.download_media(m.reply_to_message, in_memory=True)
         if not file:
@@ -105,7 +103,7 @@ async def kang_sticker(c: Client, m: Message, strings):
                 packname = f"a{packnum}_{m.from_user.id}_by_{bot_username}"
             if len(m.command) > 2:
                 sticker_emoji = (
-                    "".join(set(EMOJI_PATTERN.findall("".join(m.command[2:])))) or sticker_emoji
+                    "".join(set(emoji_regex.findall("".join(m.command[2:])))) or sticker_emoji
                 )
             resize = True
     else:
@@ -145,7 +143,7 @@ async def kang_sticker(c: Client, m: Message, strings):
         )
         stkr_file = media.updates[-1].message.media.document
         if packname_found:
-            await prog_msg.edit_text(strings("use_existing_pack"))
+            await prog_msg.edit_text(s("kang_use_existing_pack"))
             await c.invoke(
                 AddStickerToSet(
                     stickerset=InputStickerSetShortName(short_name=packname),
@@ -160,7 +158,7 @@ async def kang_sticker(c: Client, m: Message, strings):
                 )
             )
         else:
-            await prog_msg.edit_text(strings("create_new_pack_string"))
+            await prog_msg.edit_text(s("kang_create_new_pack_string"))
             u_name = m.from_user.username
             u_name = f"@{u_name}" if u_name else str(m.from_user.id)
             stkr_title = f"{u_name}'s "
@@ -190,32 +188,24 @@ async def kang_sticker(c: Client, m: Message, strings):
                 )
             except PeerIdInvalid:
                 await prog_msg.edit_text(
-                    strings("cant_create_sticker_pack_string"),
-                    reply_markup=InlineKeyboardMarkup(
-                        [
-                            [
-                                InlineKeyboardButton(
-                                    "/start", url=f"https://t.me/{bot_username}?start"
-                                )
-                            ]
-                        ]
-                    ),
+                    s("kang_cant_create_sticker_pack_string"),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("/start", url=f"https://t.me/{bot_username}?start")]
+                    ]),
                 )
                 return
     except Exception as all_e:
         await prog_msg.edit_text(f"{all_e.__class__.__name__} : {all_e}")
     else:
-        markup = InlineKeyboardMarkup(
+        markup = InlineKeyboardMarkup([
             [
-                [
-                    InlineKeyboardButton(
-                        strings("view_sticker_pack_btn"),
-                        url=f"t.me/addstickers/{packname}",
-                    )
-                ]
+                InlineKeyboardButton(
+                    s("kang_view_sticker_pack_btn"),
+                    url=f"t.me/addstickers/{packname}",
+                )
             ]
-        )
-        kanged_success_msg = strings("sticker_kanged_string")
+        ])
+        kanged_success_msg = s("kang_sticker_kanged_string")
         await prog_msg.edit_text(
             kanged_success_msg.format(sticker_emoji=sticker_emoji), reply_markup=markup
         )
@@ -232,23 +222,23 @@ def resize_image(file: str) -> BytesIO:
 
 @Client.on_message(filters.command("stickerid", PREFIXES) & filters.reply)
 @use_chat_lang
-async def getstickerid(c: Client, m: Message, strings):
+async def getstickerid(c: Client, m: Message, s: Strings):
     if m.reply_to_message.sticker:
         await m.reply_text(
-            strings("get_sticker_id_string").format(stickerid=m.reply_to_message.sticker.file_id)
+            s("stickerid_string").format(stickerid=m.reply_to_message.sticker.file_id)
         )
 
 
 @Client.on_message(filters.command("getsticker", PREFIXES) & filters.reply)
 @use_chat_lang
-async def getstickeraspng(c: Client, m: Message, strings):
+async def getstickeraspng(c: Client, m: Message, s: Strings):
     sticker = m.reply_to_message.sticker
     if not sticker:
-        await m.reply_text(strings("not_sticker"))
+        await m.reply_text(s("getsticker_not_sticker"))
         return
 
     if sticker.is_animated:
-        await m.reply_text(strings("animated_not_supported"))
+        await m.reply_text(s("getsticker_animated_not_supported"))
         return
 
     sticker_file: BytesIO = await m.reply_to_message.download(
@@ -256,5 +246,5 @@ async def getstickeraspng(c: Client, m: Message, strings):
     )
     await m.reply_to_message.reply_document(
         document=sticker_file,
-        caption=strings("sticker_info").format(emoji=sticker.emoji, id=sticker.file_id),
+        caption=s("getsticker_sticker_info").format(emoji=sticker.emoji, id=sticker.file_id),
     )

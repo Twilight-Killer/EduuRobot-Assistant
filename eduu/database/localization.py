@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2023 Amano LLC
+# Copyright (c) 2018-2024 Amano LLC
 
-from pyrogram.enums import ChatType
+from hydrogram.enums import ChatType
 
 from eduu.utils.consts import GROUP_TYPES
 
@@ -11,7 +11,7 @@ conn = database.get_conn()
 
 
 async def set_db_lang(chat_id: int, chat_type: str, lang_code: str):
-    if chat_type in [ChatType.PRIVATE, ChatType.BOT]:
+    if chat_type in {ChatType.PRIVATE, ChatType.BOT}:
         await conn.execute(
             "UPDATE users SET chat_lang = ? WHERE user_id = ?", (lang_code, chat_id)
         )

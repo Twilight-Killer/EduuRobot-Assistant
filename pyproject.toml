@@ -1,27 +1,27 @@
 [project]
 name = "eduu"
 version = "0.0.0"
-description = "A multipurpose Telegram Bot made with Pyrogram and asynchronous programming."
+description = "A multipurpose Telegram Bot made with Hydrogram and asynchronous programming."
 readme = "README.rst"
 
 dependencies = [
+  "emoji-regex",
   "gpytranslate==1.5.1",
-  "httpx[http2]>=0.18.1,<1.0.0",
+  "httpx[http2]>=0.27.0,<1.0.0",
   "humanfriendly",
+  "hydrogram @ https://github.com/hydrogram/hydrogram/archive/dev.zip",
   "meval==2.5",
-  "Pillow>=8.4.0,<11.0.0",
-  # Using Amano's Pyrogram fork
-  "pyrogram @ https://github.com/AmanoTeam/pyrogram/archive/master.zip",
+  "Pillow>=10.3.0,<11.0.0",
   "pytio",
   "regex",
   "speedtest-cli",
   "tgcrypto",
   # Using uvloop to increase general speed and stability. Ignored under Windows
-  "uvloop>=0.10.0,<1.0.0; platform_system != 'Windows'",
+  "uvloop>=0.19.0,<1.0.0; platform_system != 'Windows'",
   "yarl",
-  "yt-dlp==2023.11.16",
+  "yt-dlp==2024.5.27",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 authors = [{ name = "Amano LLC", email = "contact@amanoteam.com" }]
 license = { text = "MIT" }
@@ -38,11 +38,15 @@ homepage = "https://github.com/AmanoTeam/EduuRobot"
 
 [tool.ruff]
 line-length = 99
-target-version = "py38"
+target-version = "py310"
+preview = true
+
+[tool.ruff.lint]
 select = [
+    "FURB", # refurb
     "I",    # isort
-    "E",    # pycodestyle
-    "W",    # pycodestyle
+    "E",    # pycodestyle: error
+    "W",    # pycodestyle: warning
     "UP",   # pyupgrade
     "F",    # pyflakes
     "SIM",  # flake8-simplify
@@ -54,9 +58,23 @@ select = [
     "RUF",  # ruff
     "G",    # flake8-logging-format
     "TID",  # flake8-tidy-imports
+    "TCH",  # flake8-type-checking
+    "FA",   # flake8-future-annotations
+    "PL",   # pylint
 ]
-ignore = ["RUF001", "RUF002", "RUF003", "E203", "PERF203"]
-preview = true
+ignore = [
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    "E203",
+    "PERF203",
+    "PLR09",
+    "PLR2004",
+    "PLR1702",
+    "PLW1514",
+    "PLW2901",
+    "PLW0603",
+]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["eduu"]
